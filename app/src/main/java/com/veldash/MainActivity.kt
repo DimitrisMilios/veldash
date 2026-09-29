@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -22,8 +23,10 @@ import com.veldash.map.MapFile
 import com.veldash.map.MapRepository
 import com.veldash.map.MapSetup
 import com.veldash.map.RouteOverlay
+import com.veldash.nav.Navigator
 import com.veldash.routing.Route
 import com.veldash.routing.Router
+import com.veldash.ui.Hud
 import com.veldash.util.Bg
 import com.veldash.util.Prefs
 import org.maplibre.android.MapLibre
@@ -48,6 +51,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     private lateinit var binding: ActivityMainBinding
     private lateinit var mapView: MapView
     private lateinit var prefs: Prefs
+    private lateinit var hud: Hud
 
     private var map: MapLibreMap? = null
     private var current: MapFile? = null
@@ -58,6 +62,8 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     private var destination: LatLng? = null
     private var route: Route? = null
+    private var navigator: Navigator? = null
+    private var lastRerouteMs = 0L
 
     /** Camera tracks the batmobile, heading-up. Switched off by a pan gesture, on by the recenter button. */
     private var follow = true
@@ -66,7 +72,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     /** Every 2 s: if no fix arrived recently, grey out the speed readout. */
     private val staleTick = object : Runnable {
         override fun run() {
-            if (!LocationBus.isFresh()) showSpeedUnavailable()
+            if (!LocationBus.isFresh()) hud.showSpeedUnavailable(LocationBus.gpsAvailable)
             mainHandler.postDelayed(this, STALE_TICK_MS)
         }
     }
@@ -78,6 +84,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         prefs = Prefs(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        hud = Hud(this, binding)
 
         // Native renderer is loaded here, on first use, not in Application.onCreate.
         MapLibre.getInstance(this)
@@ -187,6 +194,12 @@ class MainActivity : Activity(), LocationBus.Listener {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
     }
 
+    /** Back clears the route first; a second press leaves the app. */
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (destination != null) clearRoute() else super.onBackPressed()
+    }
+
     // ---- Location ----
 
     private fun ensureLocationPermission() {
@@ -203,48 +216,67 @@ class MainActivity : Activity(), LocationBus.Listener {
         requestPermissions(perms.toTypedArray(), REQ_LOCATION)
     }
 
+    /**
+     * One fix per second drives everything: HUD, marker, camera, off-route detection.
+     * While on a route the car and camera use the snapped position and the road bearing,
+     * which keeps the batmobile glued to the line instead of wandering with GPS noise.
+     */
     override fun onFix(fix: Fix) {
-        marker.update(fix)
-        showSpeed(fix)
-        if (follow) followCamera(fix, animate = true)
+        hud.showSpeed((fix.speedKmh + 0.5f).toInt())
+
+        var lat = fix.lat
+        var lon = fix.lon
+        var bearing = fix.bearing
+
+        val nav = navigator
+        if (nav != null) {
+            val s = nav.update(fix.lat, fix.lon)
+            when {
+                s.arrived -> {
+                    navigator = null
+                    hud.showArrived()
+                }
+                nav.isOffRoute -> {
+                    hud.showRerouting()
+                    maybeReroute(fix)
+                }
+                else -> {
+                    hud.showNavigation(s)
+                    if (s.onRoute && fix.speedKmh >= SNAP_MIN_KMH) {
+                        lat = s.snappedLat
+                        lon = s.snappedLon
+                        bearing = s.roadBearing
+                    }
+                }
+            }
+        }
+
+        marker.update(lat, lon, bearing)
+        if (follow) followCamera(lat, lon, bearing, animate = true)
     }
 
     override fun onGpsAvailable(available: Boolean) {
-        if (!available) binding.txtSpeed.setText(R.string.gps_off)
+        if (!available) hud.showSpeedUnavailable(false)
     }
-
-    private fun showSpeed(fix: Fix) {
-        binding.txtSpeed.text = getString(R.string.speed_kmh, (fix.speedKmh + 0.5f).toInt())
-        binding.txtSpeed.setTextColor(colorOf(R.color.bat_yellow))
-    }
-
-    private fun showSpeedUnavailable() {
-        binding.txtSpeed.setText(if (LocationBus.gpsAvailable) R.string.gps_searching else R.string.gps_off)
-        binding.txtSpeed.setTextColor(colorOf(R.color.bat_text_dim))
-    }
-
-    /** Context.getColor(int) is API 23+; this works on 21 without pulling in ContextCompat. */
-    @Suppress("DEPRECATION")
-    private fun colorOf(id: Int): Int = resources.getColor(id)
 
     private fun setFollow(on: Boolean) {
         if (follow == on) return
         follow = on
         binding.btnRecenter.visibility = if (on) View.GONE else View.VISIBLE
-        if (on) LocationBus.last?.let { followCamera(it, animate = true) }
+        if (on) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true) }
     }
 
     /**
      * Heading-up chase camera. One linear ease per fix, lasting exactly the fix interval, so
      * consecutive eases chain into continuous motion instead of a stop-start stutter.
      */
-    private fun followCamera(fix: Fix, animate: Boolean) {
+    private fun followCamera(lat: Double, lon: Double, bearing: Float, animate: Boolean) {
         val m = map ?: return
         if (m.style?.isFullyLoaded != true) return
         val zoom = if (m.cameraPosition.zoom < MIN_FOLLOW_ZOOM) NAV_ZOOM else m.cameraPosition.zoom
         val pos = CameraPosition.Builder()
-            .target(LatLng(fix.lat, fix.lon))
-            .bearing(fix.bearing.toDouble())
+            .target(LatLng(lat, lon))
+            .bearing(bearing.toDouble())
             .zoom(zoom)
             .build()
         val update = CameraUpdateFactory.newCameraPosition(pos)
@@ -263,6 +295,59 @@ class MainActivity : Activity(), LocationBus.Listener {
             // Granted or not, the app-private maps dir is always scannable.
             REQ_STORAGE -> scanAndPick()
         }
+    }
+
+    // ---- Routing ----
+
+    private fun setDestination(p: LatLng) {
+        val m = map ?: return
+        destination = p
+        route = null
+        navigator = null
+        routeOverlay.setDestination(p)
+        routeOverlay.setRoute(null)
+
+        // Start point: live fix if we have one, else the camera target (handy on an emulator without GPS).
+        val fix = LocationBus.last
+        val fromLat = fix?.lat ?: m.cameraPosition.target?.latitude ?: return
+        val fromLon = fix?.lon ?: m.cameraPosition.target?.longitude ?: return
+        requestRoute(fromLat, fromLon, p)
+    }
+
+    /** Off-route: recompute from where we are, at most once per [REROUTE_MIN_MS]. */
+    private fun maybeReroute(fix: Fix) {
+        val dest = destination ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastRerouteMs < REROUTE_MIN_MS) return
+        lastRerouteMs = now
+        requestRoute(fix.lat, fix.lon, dest)
+    }
+
+    private fun requestRoute(fromLat: Double, fromLon: Double, dest: LatLng) {
+        if (navigator == null) hud.showRouting()
+        Router.request(this, fromLat, fromLon, dest.latitude, dest.longitude) { outcome ->
+            if (destination != dest) return@request // superseded
+            val r = outcome.route
+            if (r == null) {
+                if (navigator == null) hud.showRouteFailed(outcome.error ?: "?")
+                return@request
+            }
+            route = r
+            navigator = Navigator(r)
+            routeOverlay.setRoute(r)
+            hud.showRouteSummary(r)
+            // Drive the HUD immediately rather than waiting for the next fix.
+            LocationBus.last?.let { onFix(it) }
+        }
+    }
+
+    private fun clearRoute() {
+        destination = null
+        route = null
+        navigator = null
+        routeOverlay.setRoute(null)
+        routeOverlay.setDestination(null)
+        hud.showIdle()
     }
 
     // ---- Map loading ----
@@ -311,7 +396,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             val center = mapFile.center
             val bounds = mapFile.bounds
             when {
-                fix != null && follow -> followCamera(fix, animate = false)
+                fix != null && follow -> followCamera(fix.lat, fix.lon, fix.bearing, animate = false)
                 center != null -> m.moveCamera(
                     CameraUpdateFactory.newLatLngZoom(center, mapFile.centerZoom ?: DEFAULT_ZOOM),
                 )
@@ -323,74 +408,6 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun showStatus(text: String) {
         binding.txtStatus.text = text
         binding.txtStatus.visibility = View.VISIBLE
-    }
-
-    // ---- Routing ----
-
-    private fun setDestination(p: LatLng) {
-        val m = map ?: return
-        destination = p
-        route = null
-        routeOverlay.setDestination(p)
-        routeOverlay.setRoute(null)
-
-        // Start point: live fix if we have one, else the camera target (handy on an emulator without GPS).
-        val fix = LocationBus.last
-        val fromLat = fix?.lat ?: m.cameraPosition.target?.latitude ?: return
-        val fromLon = fix?.lon ?: m.cameraPosition.target?.longitude ?: return
-
-        showRouteText(getString(R.string.routing))
-        Router.request(this, fromLat, fromLon, p.latitude, p.longitude) { outcome ->
-            if (destination != p) return@request // superseded
-            val r = outcome.route
-            if (r == null) {
-                showRouteText(getString(R.string.route_failed, outcome.error ?: "?"))
-                return@request
-            }
-            route = r
-            routeOverlay.setRoute(r)
-            showRouteText(
-                getString(
-                    R.string.route_summary,
-                    formatDistance(r.distanceM),
-                    formatDuration(r.durationS),
-                    getString(
-                        when (r.source) {
-                            Route.Source.MAPBOX -> R.string.src_mapbox
-                            Route.Source.OSRM -> R.string.src_osrm
-                            Route.Source.BROUTER -> R.string.src_brouter
-                        },
-                    ),
-                ),
-            )
-        }
-    }
-
-    private fun clearRoute() {
-        destination = null
-        route = null
-        routeOverlay.setRoute(null)
-        routeOverlay.setDestination(null)
-        binding.txtRoute.visibility = View.GONE
-    }
-
-    /** Back clears the route first; a second press leaves the app. */
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (destination != null) clearRoute() else super.onBackPressed()
-    }
-
-    private fun showRouteText(text: String) {
-        binding.txtRoute.text = text
-        binding.txtRoute.visibility = View.VISIBLE
-    }
-
-    private fun formatDistance(m: Double): String =
-        if (m >= 1000.0) getString(R.string.dist_km, m / 1000.0) else getString(R.string.dist_m, m.toInt())
-
-    private fun formatDuration(s: Double): String {
-        val min = (s / 60.0 + 0.5).toInt()
-        return if (min >= 60) getString(R.string.dur_h_min, min / 60, min % 60) else getString(R.string.dur_min, min)
     }
 
     // ---- Map picker ----
@@ -436,5 +453,9 @@ class MainActivity : Activity(), LocationBus.Listener {
         /** Matches the GPS interval so eases chain seamlessly. */
         const val FOLLOW_EASE_MS = 1000
         const val STALE_TICK_MS = 2000L
+
+        /** Below this the car sits on the raw fix; snapping a parked car looks wrong. */
+        const val SNAP_MIN_KMH = 3f
+        const val REROUTE_MIN_MS = 10_000L
     }
 }

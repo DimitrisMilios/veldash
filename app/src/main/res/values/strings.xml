@@ -29,4 +29,8 @@
     <string name="dist_km">%1$.1f km</string>
     <string name="dur_min">%1$d min</string>
     <string name="dur_h_min">%1$d h %2$d min</string>
+
+    <string name="nav_bottom">%1$s · %2$s · ETA %3$s</string>
+    <string name="rerouting">Rerouting</string>
+    <string name="arrived">Arrived</string>
 </resources>

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Single-level hierarchy. The MapView (a SurfaceView) is added programmatically at index 0
-    so every overlay below is composited above it. No nested layouts, no weights.
+    so every overlay below is composited above it. No nested layouts, no weights: the HUD is
+    a flat set of gravity-positioned views over one opaque black strip.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/map_container"
@@ -21,13 +22,63 @@
         android:text="@string/no_map_loaded"
         android:textSize="@dimen/text_body" />
 
-    <!-- Speed readout. Opaque black background: one solid quad, no alpha blending over the map. -->
+    <!-- ===== Top HUD strip (visible while navigating) ===== -->
+
+    <View
+        android:id="@+id/hud_bg"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/hud_height"
+        android:layout_gravity="top"
+        android:background="@color/bat_black"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/img_maneuver"
+        android:layout_width="@dimen/hud_icon"
+        android:layout_height="@dimen/hud_icon"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="@dimen/gap"
+        android:layout_marginTop="@dimen/gap"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_turn_straight"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/txt_turn_distance"
+        style="@style/Widget.Veldash.Hud"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="@dimen/hud_text_start"
+        android:layout_marginTop="2dp"
+        android:background="@null"
+        android:textSize="@dimen/text_turn"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/txt_turn_street"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="@dimen/hud_text_start"
+        android:layout_marginTop="@dimen/hud_street_top"
+        android:layout_marginEnd="@dimen/hud_speed_reserve"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-condensed"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:textColor="@color/bat_text_dim"
+        android:textSize="@dimen/text_body"
+        android:visibility="gone" />
+
+    <!-- Speed readout, always visible. Opaque black background: one solid quad, no blending. -->
     <TextView
         android:id="@+id/txt_speed"
         style="@style/Widget.Veldash.Hud"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
+        android:layout_gravity="top|end"
         android:layout_margin="@dimen/gap"
         android:gravity="center"
         android:minWidth="120dp"
@@ -36,20 +87,11 @@
         android:paddingTop="@dimen/gap"
         android:paddingBottom="@dimen/gap"
         android:text="@string/gps_searching"
-        android:textSize="@dimen/text_maneuver" />
+        android:textSize="@dimen/text_speed" />
 
-    <Button
-        android:id="@+id/btn_load_map"
-        style="@style/Widget.Veldash.Button"
-        android:layout_width="wrap_content"
-        android:layout_height="@dimen/touch_target"
-        android:layout_gravity="top|end"
-        android:layout_margin="@dimen/gap"
-        android:paddingStart="@dimen/gap_large"
-        android:paddingEnd="@dimen/gap_large"
-        android:text="@string/load_map" />
+    <!-- ===== Bottom ===== -->
 
-    <!-- Route summary / routing status. Hidden until a destination is set. -->
+    <!-- Remaining distance / ETA while navigating; routing status otherwise. -->
     <TextView
         android:id="@+id/txt_route"
         style="@style/Widget.Veldash.Hud"
@@ -64,6 +106,18 @@
         android:paddingBottom="@dimen/gap"
         android:textSize="@dimen/text_body"
         android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btn_load_map"
+        style="@style/Widget.Veldash.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/touch_target"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="@dimen/gap"
+        android:layout_marginBottom="@dimen/gap_large"
+        android:paddingStart="@dimen/gap_large"
+        android:paddingEnd="@dimen/gap_large"
+        android:text="@string/load_map" />
 
     <!-- Shown only while follow mode is off (driver panned the map). -->
     <ImageButton
@@ -85,7 +139,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
-        android:padding="4dp"
+        android:padding="2dp"
         android:text="@string/attribution_osm"
         android:textColor="@color/bat_text_dim"
         android:textSize="10sp" />

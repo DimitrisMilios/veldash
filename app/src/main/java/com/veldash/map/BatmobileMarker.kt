@@ -53,9 +53,12 @@ class BatmobileMarker(private val context: Context) {
         visible = fix != null
     }
 
-    fun update(fix: Fix) {
+    fun update(fix: Fix) = update(fix.lat, fix.lon, fix.bearing)
+
+    /** Position the car explicitly, e.g. at the route-snapped point while navigating. */
+    fun update(lat: Double, lon: Double, bearing: Float) {
         val src = source ?: return
-        src.setGeoJson(feature(fix))
+        src.setGeoJson(feature(lat, lon, bearing))
         if (!visible) {
             layer?.setProperties(PropertyFactory.visibility(Property.VISIBLE))
             visible = true
@@ -68,13 +71,12 @@ class BatmobileMarker(private val context: Context) {
         visible = false
     }
 
-    private fun feature(fix: Fix?): Feature {
-        val f = if (fix != null) {
-            Feature.fromGeometry(Point.fromLngLat(fix.lon, fix.lat))
-        } else {
-            Feature.fromGeometry(Point.fromLngLat(0.0, 0.0))
-        }
-        f.addNumberProperty(PROP_BEARING, fix?.bearing ?: 0f)
+    private fun feature(fix: Fix?): Feature =
+        if (fix != null) feature(fix.lat, fix.lon, fix.bearing) else feature(0.0, 0.0, 0f)
+
+    private fun feature(lat: Double, lon: Double, bearing: Float): Feature {
+        val f = Feature.fromGeometry(Point.fromLngLat(lon, lat))
+        f.addNumberProperty(PROP_BEARING, bearing)
         return f
     }
 
