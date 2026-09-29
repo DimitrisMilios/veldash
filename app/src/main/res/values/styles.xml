@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Platform theme only: no AppCompat, no Material Components library.
+        android:Theme.Material.NoActionBar exists on every API >= 21 device and costs zero DEX.
+    -->
+    <style name="Theme.Veldash" parent="android:Theme.Material.NoActionBar">
+        <!-- Solid color window background (not a drawable): one GL clear, no extra overdraw layer. -->
+        <item name="android:windowBackground">@color/bat_black</item>
+        <item name="android:colorBackground">@color/bat_black</item>
+        <item name="android:colorPrimary">@color/bat_black</item>
+        <item name="android:colorPrimaryDark">@color/bat_black</item>
+        <item name="android:colorAccent">@color/bat_yellow</item>
+        <item name="android:statusBarColor">@color/bat_black</item>
+        <item name="android:navigationBarColor">@color/bat_black</item>
+
+        <item name="android:textColorPrimary">@color/bat_text</item>
+        <item name="android:textColorSecondary">@color/bat_text_dim</item>
+
+        <!-- Full screen, no title, no content-overlay shadow. -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+
+        <!-- Kill every window/activity transition: no cross-fades, no scale animations. -->
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowActivityTransitions">false</item>
+        <item name="android:windowContentTransitions">false</item>
+
+        <!-- Keep the launch preview window: it is cheap and makes cold start feel instant. -->
+        <item name="android:windowDisablePreview">false</item>
+
+        <!-- Flat everything. -->
+        <item name="android:windowElevation">0dp</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+
+    <!-- Base widget styles the dashboard will use. Flat, no state-list animators, no ripples. -->
+    <style name="Widget.Veldash.Button" parent="android:Widget.Material.Button.Borderless">
+        <item name="android:minWidth">@dimen/touch_target</item>
+        <item name="android:minHeight">@dimen/touch_target</item>
+        <item name="android:background">@drawable/bg_button</item>
+        <item name="android:textColor">@color/bat_yellow</item>
+        <item name="android:textSize">@dimen/text_body</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+
+    <style name="Widget.Veldash.Hud" parent="">
+        <item name="android:background">@color/bat_black</item>
+        <item name="android:textColor">@color/bat_yellow</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+</resources>
