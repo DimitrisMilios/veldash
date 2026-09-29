@@ -35,8 +35,10 @@ object MapRepository {
 
     /** Directories to scan, in priority order. */
     fun candidateDirs(context: Context): List<File> {
-        val dirs = ArrayList<File>(3)
+        val dirs = ArrayList<File>(4)
         dirs += mapsDir(context)
+        // Internal fallback: reachable via `run-as` on emulators and on units with no usable external storage.
+        dirs += File(context.filesDir, "maps")
         if (Build.VERSION.SDK_INT <= 32 && !needsStoragePermission(context)) {
             val root = Environment.getExternalStorageDirectory()
             dirs += File(root, "veldash")

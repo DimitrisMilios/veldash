@@ -33,10 +33,23 @@ object OfflineRouter {
         return dir
     }
 
+    /** The advertised location for segment files (external app dir). */
     fun segmentsDir(context: Context): File = File(dataDir(context), "segments").also { if (!it.exists()) it.mkdirs() }
 
-    fun hasSegments(context: Context): Boolean =
-        segmentsDir(context).listFiles()?.any { it.name.endsWith(".rd5", ignoreCase = true) } == true
+    /** Internal fallback, for emulators (`run-as`) and units without usable external storage. */
+    private fun internalSegmentsDir(context: Context): File = File(context.filesDir, "$ASSET_DIR/segments")
+
+    private fun hasRd5(dir: File): Boolean = dir.listFiles()?.any { it.name.endsWith(".rd5", ignoreCase = true) } == true
+
+    /** Whichever directory actually holds .rd5 files; external wins. */
+    private fun activeSegmentsDir(context: Context): File? {
+        val ext = segmentsDir(context)
+        if (hasRd5(ext)) return ext
+        val int = internalSegmentsDir(context)
+        return if (hasRd5(int)) int else null
+    }
+
+    fun hasSegments(context: Context): Boolean = activeSegmentsDir(context) != null
 
     fun hasProfileAssets(context: Context): Boolean = try {
         val names = context.assets.list(ASSET_DIR) ?: emptyArray()
@@ -51,11 +64,11 @@ object OfflineRouter {
     @Throws(RoutingException::class)
     fun route(context: Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route {
         if (!hasProfileAssets(context)) throw RoutingException("Offline routing profile missing from app")
-        if (!hasSegments(context)) throw RoutingException("No offline routing data (.rd5) installed")
+        val segments = activeSegmentsDir(context) ?: throw RoutingException("No offline routing data (.rd5) installed")
 
         val profile = ensureProfiles(context)
         val res = BRouterBridge.route(
-            segmentsDir(context), profile,
+            segments, profile,
             fromLat, fromLon, toLat, toLon,
             MAX_RUN_MS, MEMORY_MB,
         )

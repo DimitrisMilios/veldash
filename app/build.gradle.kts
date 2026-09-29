@@ -63,6 +63,14 @@ android {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
         }
+        // "bench": byte-for-byte the release build (R8, shrinking, same applicationId) but debuggable,
+        // so `adb shell run-as com.veldash` can copy map/segment files into the app's storage on
+        // emulators and profilers can attach. Never ship this variant.
+        create("bench") {
+            initWith(getByName("release"))
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     buildFeatures {

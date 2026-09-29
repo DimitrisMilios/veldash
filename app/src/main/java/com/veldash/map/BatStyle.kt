@@ -8,7 +8,8 @@ import org.json.JSONObject
  * style asset to parse and the tile path can be injected directly.
  *
  * Design rules for a 1 GB head unit:
- *  - ~12 layers total. Every layer is a draw call per tile; fewer layers = less GPU and less RAM.
+ *  - As few layers as possible. MapLibre builds one vertex bucket per layer per tile, so two
+ *    road layers with data-driven colour/width cost half the memory of four single-class layers.
  *  - No fill-extrusion, no hillshade, no raster-dem, no sprites, no line casings, no patterns.
  *  - Roads are zoom-gated: minor roads only appear at z12+, buildings at z14+.
  *  - Symbol (text) layers are only emitted when glyph PBFs are bundled under assets/fonts/.
@@ -105,10 +106,7 @@ object BatStyle {
               "paint": { "line-color": "$C_WATERWAY",
                          "line-width": ["interpolate", ["exponential", 1.4], ["zoom"], 9, 0.5, 18, 4] } },
 
-            { "id": "building", "type": "fill", "source": "osm", "source-layer": "building",
-              "minzoom": 14,
-              "paint": { "fill-color": "$C_BUILDING", "fill-antialias": false } },
-
+            $BUILDING_LAYER
             { "id": "road-minor", "type": "line", "source": "osm", "source-layer": "transportation",
               "minzoom": 12,
               "filter": ["match", ["get", "class"], ["minor", "service", "track", "living_street", "residential"], true, false],
@@ -116,26 +114,17 @@ object BatStyle {
               "paint": { "line-color": "$C_ROAD_MINOR",
                          "line-width": ["interpolate", ["exponential", 1.5], ["zoom"], 12, 0.6, 18, 8] } },
 
-            { "id": "road-mid", "type": "line", "source": "osm", "source-layer": "transportation",
-              "minzoom": 9,
-              "filter": ["match", ["get", "class"], ["secondary", "tertiary"], true, false],
-              "layout": { "line-join": "round", "line-cap": "butt" },
-              "paint": { "line-color": "$C_ROAD_MID",
-                         "line-width": ["interpolate", ["exponential", 1.5], ["zoom"], 9, 0.7, 18, 12] } },
-
-            { "id": "road-major", "type": "line", "source": "osm", "source-layer": "transportation",
-              "minzoom": 6,
-              "filter": ["match", ["get", "class"], ["primary", "trunk"], true, false],
-              "layout": { "line-join": "round", "line-cap": "butt" },
-              "paint": { "line-color": "$C_ROAD_MAJOR",
-                         "line-width": ["interpolate", ["exponential", 1.5], ["zoom"], 6, 0.8, 18, 16] } },
-
-            { "id": "road-motorway", "type": "line", "source": "osm", "source-layer": "transportation",
+            { "id": "road-main", "type": "line", "source": "osm", "source-layer": "transportation",
               "minzoom": 4,
-              "filter": ["==", ["get", "class"], "motorway"],
-              "layout": { "line-join": "round", "line-cap": "butt" },
-              "paint": { "line-color": "$C_ROAD_MOTORWAY",
-                         "line-width": ["interpolate", ["exponential", 1.5], ["zoom"], 4, 0.8, 18, 18] } },
+              "filter": ["match", ["get", "class"], ["motorway", "trunk", "primary", "secondary", "tertiary"], true, false],
+              "layout": { "line-join": "round", "line-cap": "butt", "line-sort-key": ["match", ["get", "class"], "motorway", 3, ["trunk", "primary"], 2, 1] },
+              "paint": { "line-color": ["match", ["get", "class"],
+                                         "motorway", "$C_ROAD_MOTORWAY",
+                                         ["trunk", "primary"], "$C_ROAD_MAJOR",
+                                         "$C_ROAD_MID"],
+                         "line-width": ["interpolate", ["exponential", 1.5], ["zoom"],
+                                         4,  ["match", ["get", "class"], "motorway", 0.8, ["trunk", "primary"], 0.5, 0.3],
+                                         18, ["match", ["get", "class"], "motorway", 18, ["trunk", "primary"], 16, 12]] } },
 
             { "id": "boundary", "type": "line", "source": "osm", "source-layer": "boundary",
               "filter": ["<=", ["get", "admin_level"], 2],
@@ -144,6 +133,22 @@ object BatStyle {
           ]
         }
         """.trimIndent()
+    }
+
+    /**
+     * Building footprints. Measured on a dense city centre at z16: the single heaviest layer in
+     * memory. Off by default for 1 GB units; set [SHOW_BUILDINGS] to true for a richer look.
+     */
+    private const val SHOW_BUILDINGS = false
+
+    private val BUILDING_LAYER: String = if (SHOW_BUILDINGS) {
+        """
+            { "id": "building", "type": "fill", "source": "osm", "source-layer": "building",
+              "minzoom": 14,
+              "paint": { "fill-color": "$C_BUILDING", "fill-antialias": false } },
+        """
+    } else {
+        ""
     }
 
     /** Appended inside the layers array; leading comma is intentional. */

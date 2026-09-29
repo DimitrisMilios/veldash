@@ -19,7 +19,7 @@ object MapSetup {
      * How many zoom levels of parent tiles to prefetch. Default is 4. Each extra level costs a few
      * extra tiles in memory; 2 still gives a low-res placeholder during zoom so nothing flashes blank.
      */
-    private const val PREFETCH_ZOOM_DELTA = 2
+    private const val PREFETCH_ZOOM_DELTA = 0
 
     /** Options for the programmatic MapView constructor. */
     fun options(context: Context): MapLibreMapOptions =
@@ -52,7 +52,7 @@ object MapSetup {
         // Keep the in-memory tile cache: it holds parent/child tiles so pan-back and zoom are instant.
         // MapLibre sizes it from the viewport; there is no byte cap API, so RAM is controlled through
         // style layer count (BatStyle), prefetch delta (above) and onLowMemory() (MainActivity).
-        map.setTileCacheEnabled(true)
+        map.setTileCacheEnabled(false)
         map.setDebugActive(false)
         map.setMinPitchPreference(0.0)
         map.setMaxPitchPreference(0.0)

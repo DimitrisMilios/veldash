@@ -98,18 +98,32 @@ class LocationService : Service(), LocationListener {
 
     override fun onLocationChanged(location: Location) {
         val last = prev
-        var speedKmh = if (location.hasSpeed()) location.speed * MPS_TO_KMH else -1f
-        var bearing = if (location.hasBearing()) location.bearing else Float.NaN
 
+        // Movement derived from consecutive positions. Used whenever the chip reports nothing,
+        // or reports an exact 0.0 speed/bearing flagged as valid while the position is clearly
+        // moving (the Android emulator does this; so do some cheap head-unit GPS modules).
+        var dtS = 0f
+        var distM = 0f
         if (last != null) {
-            val dtS = (location.elapsedRealtimeNanos - last.elapsedRealtimeNanos) / 1e9f
-            if (dtS > 0.2f) {
-                val distM = last.distanceTo(location)
-                if (speedKmh < 0f) speedKmh = distM / dtS * MPS_TO_KMH
-                if (bearing.isNaN() && distM >= MIN_BEARING_DIST_M) bearing = last.bearingTo(location)
-            }
+            dtS = (location.elapsedRealtimeNanos - last.elapsedRealtimeNanos) / 1e9f
+            if (dtS > 0.2f) distM = last.distanceTo(location)
         }
-        if (speedKmh < 0f) speedKmh = 0f
+        val moved = dtS > 0.2f && distM >= MIN_MOVE_M
+
+        var speedKmh = when {
+            location.hasSpeed() && location.speed > 0f -> location.speed * MPS_TO_KMH
+            moved -> distM / dtS * MPS_TO_KMH
+            else -> 0f
+        }
+        // Reject implausible jumps (multipath, cold-start relocation) from the derived speed.
+        if (!location.hasSpeed() && speedKmh > MAX_DERIVED_KMH) speedKmh = 0f
+
+        var bearing = when {
+            location.hasBearing() && location.bearing != 0f -> location.bearing
+            moved && distM >= MIN_BEARING_DIST_M -> last!!.bearingTo(location)
+            location.hasBearing() -> location.bearing // genuine due-north
+            else -> Float.NaN
+        }
 
         // GPS bearing is noise below walking pace: keep the last good heading.
         if (!bearing.isNaN() && speedKmh >= MIN_BEARING_SPEED_KMH) {
@@ -198,8 +212,10 @@ class LocationService : Service(), LocationListener {
     companion object {
         private const val INTERVAL_MS = 1000L
         private const val MPS_TO_KMH = 3.6f
+        private const val MIN_MOVE_M = 1.5f
         private const val MIN_BEARING_DIST_M = 3f
         private const val MIN_BEARING_SPEED_KMH = 4f
+        private const val MAX_DERIVED_KMH = 250f
 
         private const val NOTIF_ID = 1
         private const val CHANNEL_ID = "nav"

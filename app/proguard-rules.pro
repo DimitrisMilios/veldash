@@ -28,6 +28,14 @@
 -keep interface org.maplibre.android.** { *; }
 -dontwarn org.maplibre.android.**
 
+# ---- BRouter ----
+# RoutingContext.setModel() loads the path model named in the profile via Class.forName
+# (car-vario.brf -> btools.router.KinematicModel). Keep every model/path implementation.
+-keep class * extends btools.router.OsmPathModel { *; }
+-keep class * extends btools.router.OsmPath { *; }
+-keep class * extends btools.router.OsmPrePath { *; }
+-dontwarn btools.**
+
 # ---- OkHttp ----
 -dontwarn okhttp3.**
 -dontwarn okio.**

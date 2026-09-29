@@ -53,11 +53,13 @@ public final class BRouterBridge {
         waypoints.add(node("from", fromLat, fromLon));
         waypoints.add(node("to", toLat, toLon));
 
-        RoutingEngine engine = new RoutingEngine(null, null, segmentDir, waypoints, rc,
-                RoutingEngine.BROUTER_ENGINEMODE_ROUTING);
-        engine.quite = true;
-
+        // The constructor parses the profile and can throw (bad profile, missing lookups.dat),
+        // so it sits inside the same guard as the search itself.
+        RoutingEngine engine;
         try {
+            engine = new RoutingEngine(null, null, segmentDir, waypoints, rc,
+                    RoutingEngine.BROUTER_ENGINEMODE_ROUTING);
+            engine.quite = true;
             engine.doRun(maxMs);
         } catch (Throwable t) {
             out.error = t.getMessage() != null ? t.getMessage() : t.toString();

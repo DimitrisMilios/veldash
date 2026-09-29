@@ -25,6 +25,7 @@ import com.veldash.map.MapRepository
 import com.veldash.map.MapSetup
 import com.veldash.map.RouteOverlay
 import com.veldash.nav.Navigator
+import com.veldash.routing.OfflineRouter
 import com.veldash.routing.Route
 import com.veldash.routing.Router
 import com.veldash.search.Favorites
@@ -105,6 +106,11 @@ class MainActivity : Activity(), LocationBus.Listener {
             currentPosition = { LocationBus.last?.let { LatLng(it.lat, it.lon) } ?: map?.cameraPosition?.target },
         )
         favorites.load { searchPanel.refresh() }
+        // Create the data folders up front so they exist for users copying files in over USB/MTP.
+        Bg.execute {
+            MapRepository.mapsDir(this)
+            OfflineRouter.segmentsDir(this)
+        }
 
         // Native renderer is loaded here, on first use, not in Application.onCreate.
         MapLibre.getInstance(this)
