@@ -1,0 +1,18 @@
+[versions]
+# Toolchain
+agp = "8.7.3"
+kotlin = "2.1.0"
+
+# Runtime deps -- keep this list SHORT. Every line here costs RAM and APK size.
+maplibre = "11.8.8"      # org.maplibre.gl:android-sdk (MapLibre Native, vector tiles, OpenGL ES 2)
+okhttp = "4.12.0"        # Already a transitive dep of MapLibre -> using it directly costs zero extra bytes
+annotation = "1.9.1"     # Tiny, compile-time only
+
+[libraries]
+maplibre-android-sdk = { group = "org.maplibre.gl", name = "android-sdk", version.ref = "maplibre" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

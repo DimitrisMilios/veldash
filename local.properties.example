@@ -1,0 +1,2 @@
+# Copy to local.properties (git-ignored). Leave MAPBOX_TOKEN empty to use the OSRM fallback.
+MAPBOX_TOKEN=
