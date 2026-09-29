@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row of the search list. A single TextView; name and detail are spans in one string. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bat_black"
+    android:fontFamily="sans-serif-condensed"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/touch_target"
+    android:paddingStart="@dimen/gap_large"
+    android:paddingEnd="@dimen/gap_large"
+    android:paddingTop="@dimen/gap"
+    android:paddingBottom="@dimen/gap"
+    android:textColor="@color/bat_text"
+    android:textSize="@dimen/text_body" />

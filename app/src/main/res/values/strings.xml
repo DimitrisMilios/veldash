@@ -33,4 +33,19 @@
     <string name="nav_bottom">%1$s · %2$s · ETA %3$s</string>
     <string name="rerouting">Rerouting</string>
     <string name="arrived">Arrived</string>
+
+    <string name="where_to">Where to?</string>
+    <string name="search_hint">Address, place, or lat, lon</string>
+    <string name="search">Go</string>
+    <string name="close">✕</string>
+    <string name="searching">Searching…</string>
+    <string name="search_offline">Offline: favorites and coordinates only</string>
+    <string name="search_failed">Search failed</string>
+    <string name="no_results">No results</string>
+    <string name="save_destination">★ Save current destination</string>
+    <string name="favorite_name">Favorite name</string>
+    <string name="save">Save</string>
+    <string name="remove">Remove</string>
+    <string name="cancel">Cancel</string>
+    <string name="remove_favorite">Remove "%1$s" from favorites?</string>
 </resources>

@@ -21,4 +21,8 @@
     <dimen name="hud_speed_reserve">170dp</dimen>
 
     <dimen name="route_line_width">7dp</dimen>
+
+    <!-- Bottom button row (flat FrameLayout, positioned by margins). -->
+    <dimen name="btn_search_width">176dp</dimen>
+    <dimen name="btn_load_map_start">192dp</dimen>
 </resources>

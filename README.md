@@ -42,6 +42,22 @@ For Greece that is `E20_N35.rd5` and `E25_N35.rd5`. The car profile and lookup t
 inside the APK under `app/src/main/assets/brouter/` (`car-vario.brf` and `lookups.dat` from the
 BRouter repository, `misc/profiles2/`). Without those two assets offline routing is disabled.
 
+## Search and favorites
+
+"Where to?" opens the search panel. Type an address or place name and press Go, or type
+coordinates as `lat, lon` (works offline). Tap a result to route to it. Long-press a result to
+save it as a favorite, or long-press a favorite to remove it. When a destination is set, the
+first row saves it as a favorite.
+
+- **Online:** Mapbox Geocoding when `MAPBOX_TOKEN` is set, otherwise Nominatim (OSM). Nominatim
+  is queried only on an explicit search, never per keystroke, per its usage policy.
+- **Offline:** favorites and coordinate input.
+
+Favorites live in `files/favorites.json` inside the app's private storage.
+
+Other apps can hand over a destination with a `geo:` intent, for example
+`geo:37.98,23.72`, `geo:0,0?q=37.98,23.72(Label)` or `geo:0,0?q=Syntagma+Square`.
+
 ## Map labels (glyphs)
 
 MapLibre needs glyph PBFs to draw text. To enable road and place labels, add a

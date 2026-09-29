@@ -108,12 +108,22 @@
         android:visibility="gone" />
 
     <Button
+        android:id="@+id/btn_search"
+        style="@style/Widget.Veldash.Button"
+        android:layout_width="@dimen/btn_search_width"
+        android:layout_height="@dimen/touch_target"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="@dimen/gap"
+        android:layout_marginBottom="@dimen/gap_large"
+        android:text="@string/where_to" />
+
+    <Button
         android:id="@+id/btn_load_map"
         style="@style/Widget.Veldash.Button"
         android:layout_width="wrap_content"
         android:layout_height="@dimen/touch_target"
         android:layout_gravity="bottom|start"
-        android:layout_marginStart="@dimen/gap"
+        android:layout_marginStart="@dimen/btn_load_map_start"
         android:layout_marginBottom="@dimen/gap_large"
         android:paddingStart="@dimen/gap_large"
         android:paddingEnd="@dimen/gap_large"
@@ -132,6 +142,67 @@
         android:scaleType="fitCenter"
         android:src="@drawable/ic_batmobile"
         android:visibility="gone" />
+
+    <!-- ===== Search panel: GONE until opened, covers everything while open ===== -->
+    <LinearLayout
+        android:id="@+id/panel_search"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/bat_black"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_target"
+            android:layout_margin="@dimen/gap"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/edit_search"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch|flagNoExtractUi"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:paddingStart="@dimen/gap_large"
+                android:paddingEnd="@dimen/gap_large"
+                android:singleLine="true"
+                android:textColor="@color/bat_text"
+                android:textColorHint="@color/bat_text_dim"
+                android:textSize="@dimen/text_body" />
+
+            <Button
+                android:id="@+id/btn_search_go"
+                style="@style/Widget.Veldash.Button"
+                android:layout_width="@dimen/touch_target_large"
+                android:layout_height="match_parent"
+                android:layout_marginStart="@dimen/gap"
+                android:text="@string/search" />
+
+            <Button
+                android:id="@+id/btn_search_close"
+                style="@style/Widget.Veldash.Button"
+                android:layout_width="@dimen/touch_target"
+                android:layout_height="match_parent"
+                android:layout_marginStart="@dimen/gap"
+                android:text="@string/close" />
+        </LinearLayout>
+
+        <ListView
+            android:id="@+id/list_places"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:cacheColorHint="@color/bat_black"
+            android:divider="@color/bat_outline"
+            android:dividerHeight="1dp"
+            android:scrollbars="none" />
+    </LinearLayout>
 
     <!-- OSM attribution is a licence requirement for OpenStreetMap-derived tiles. -->
     <TextView

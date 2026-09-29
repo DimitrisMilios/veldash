@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ComponentCallbacks2
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -26,7 +27,11 @@ import com.veldash.map.RouteOverlay
 import com.veldash.nav.Navigator
 import com.veldash.routing.Route
 import com.veldash.routing.Router
+import com.veldash.search.Favorites
+import com.veldash.search.GeoUri
+import com.veldash.search.Place
 import com.veldash.ui.Hud
+import com.veldash.ui.SearchPanel
 import com.veldash.util.Bg
 import com.veldash.util.Prefs
 import org.maplibre.android.MapLibre
@@ -52,6 +57,11 @@ class MainActivity : Activity(), LocationBus.Listener {
     private lateinit var mapView: MapView
     private lateinit var prefs: Prefs
     private lateinit var hud: Hud
+    private lateinit var favorites: Favorites
+    private lateinit var searchPanel: SearchPanel
+
+    /** Destination requested before a style was loaded (geo: intent at cold start). */
+    private var pendingDestination: LatLng? = null
 
     private var map: MapLibreMap? = null
     private var current: MapFile? = null
@@ -85,6 +95,16 @@ class MainActivity : Activity(), LocationBus.Listener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         hud = Hud(this, binding)
+        favorites = Favorites(this)
+        searchPanel = SearchPanel(
+            activity = this,
+            b = binding,
+            favorites = favorites,
+            onPick = { goTo(it) },
+            currentDestination = { destination },
+            currentPosition = { LocationBus.last?.let { LatLng(it.lat, it.lon) } ?: map?.cameraPosition?.target },
+        )
+        favorites.load { searchPanel.refresh() }
 
         // Native renderer is loaded here, on first use, not in Application.onCreate.
         MapLibre.getInstance(this)
@@ -119,7 +139,25 @@ class MainActivity : Activity(), LocationBus.Listener {
 
         binding.btnLoadMap.setOnClickListener { pickMap() }
         binding.btnRecenter.setOnClickListener { setFollow(true) }
+        binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
+
+        handleGeoIntent(intent)
     }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleGeoIntent(intent)
+    }
+
+    /** geo: URIs from other apps: coordinates go straight to routing, free text opens search. */
+    private fun handleGeoIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val t = GeoUri.parse(intent.dataString) ?: return
+        val p = t.place
+        if (p != null) goTo(p) else searchPanel.open(t.query)
+    }
+
+    private fun goTo(p: Place) = setDestination(LatLng(p.lat, p.lon))
 
     // ---- Lifecycle ----
 
@@ -194,10 +232,14 @@ class MainActivity : Activity(), LocationBus.Listener {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
     }
 
-    /** Back clears the route first; a second press leaves the app. */
+    /** Back closes search, then clears the route, then leaves the app. */
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (destination != null) clearRoute() else super.onBackPressed()
+        when {
+            searchPanel.isOpen -> searchPanel.close()
+            destination != null -> clearRoute()
+            else -> super.onBackPressed()
+        }
     }
 
     // ---- Location ----
@@ -300,7 +342,12 @@ class MainActivity : Activity(), LocationBus.Listener {
     // ---- Routing ----
 
     private fun setDestination(p: LatLng) {
-        val m = map ?: return
+        val m = map
+        if (m == null || m.style?.isFullyLoaded != true) {
+            // No map yet: remember it and apply once a style is up.
+            pendingDestination = p
+            return
+        }
         destination = p
         route = null
         navigator = null
@@ -401,6 +448,11 @@ class MainActivity : Activity(), LocationBus.Listener {
                     CameraUpdateFactory.newLatLngZoom(center, mapFile.centerZoom ?: DEFAULT_ZOOM),
                 )
                 bounds != null -> m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 0))
+            }
+
+            pendingDestination?.let {
+                pendingDestination = null
+                setDestination(it)
             }
         }
     }
