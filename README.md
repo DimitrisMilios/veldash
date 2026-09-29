@@ -25,6 +25,23 @@ On Android 12 and below it also scans `/sdcard/veldash/` and `/sdcard/Download/`
 Vector tiles must use the OpenMapTiles schema (`format=pbf`). Raster `.mbtiles` (`png`/`jpg`)
 are supported as a fallback.
 
+## Routing
+
+Long-press the map to set a destination. Back clears the route.
+
+- **Online:** Mapbox Directions when `MAPBOX_TOKEN` is set, otherwise the OSRM URL from
+  `app/build.gradle.kts` (the public demo server by default; run your own for production).
+- **Offline:** embedded BRouter. Copy segment files (`*.rd5`, 5x5 degree tiles, from
+  `https://brouter.de/brouter/segments4/`) to:
+
+```
+/sdcard/Android/data/com.veldash/files/brouter/segments/
+```
+
+For Greece that is `E20_N35.rd5` and `E25_N35.rd5`. The car profile and lookup table ship
+inside the APK under `app/src/main/assets/brouter/` (`car-vario.brf` and `lookups.dat` from the
+BRouter repository, `misc/profiles2/`). Without those two assets offline routing is disabled.
+
 ## Map labels (glyphs)
 
 MapLibre needs glyph PBFs to draw text. To enable road and place labels, add a

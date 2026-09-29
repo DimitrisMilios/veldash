@@ -21,6 +21,9 @@ import com.veldash.map.BatmobileMarker
 import com.veldash.map.MapFile
 import com.veldash.map.MapRepository
 import com.veldash.map.MapSetup
+import com.veldash.map.RouteOverlay
+import com.veldash.routing.Route
+import com.veldash.routing.Router
 import com.veldash.util.Bg
 import com.veldash.util.Prefs
 import org.maplibre.android.MapLibre
@@ -50,7 +53,11 @@ class MainActivity : Activity(), LocationBus.Listener {
     private var current: MapFile? = null
 
     private val marker = BatmobileMarker(this)
+    private val routeOverlay = RouteOverlay(this)
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var destination: LatLng? = null
+    private var route: Route? = null
 
     /** Camera tracks the batmobile, heading-up. Switched off by a pan gesture, on by the recenter button. */
     private var follow = true
@@ -95,6 +102,11 @@ class MainActivity : Activity(), LocationBus.Listener {
                 override fun onMove(detector: MoveGestureDetector) = Unit
                 override fun onMoveEnd(detector: MoveGestureDetector) = Unit
             })
+            // Long-press anywhere = "take me there".
+            m.addOnMapLongClickListener { p ->
+                setDestination(p)
+                true
+            }
             loadSavedMap()
         }
 
@@ -134,6 +146,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         // stopWithTask in the manifest also covers swipe-away; this covers a clean finish.
         if (isFinishing) LocationService.stop(this)
         marker.detach()
+        routeOverlay.detach()
         mapView.onDestroy()
         map = null
         super.onDestroy()
@@ -276,6 +289,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         prefs.mapPath = mapFile.file.absolutePath
         showStatus(mapFile.name)
         marker.detach()
+        routeOverlay.detach()
 
         // Style JSON is built on the main thread: it is string concatenation, sub-millisecond.
         val json = BatStyle.build(this, mapFile)
@@ -290,6 +304,8 @@ class MainActivity : Activity(), LocationBus.Listener {
 
             val fix = LocationBus.last
             marker.attach(style, fix)
+            // Overlays live in the style: re-add them (with current route) on every style load.
+            routeOverlay.attach(style, BatmobileMarker.LAYER, route, destination)
 
             // Camera: batmobile if we have a fix, else the map's own centre or bounds. No animation.
             val center = mapFile.center
@@ -307,6 +323,74 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun showStatus(text: String) {
         binding.txtStatus.text = text
         binding.txtStatus.visibility = View.VISIBLE
+    }
+
+    // ---- Routing ----
+
+    private fun setDestination(p: LatLng) {
+        val m = map ?: return
+        destination = p
+        route = null
+        routeOverlay.setDestination(p)
+        routeOverlay.setRoute(null)
+
+        // Start point: live fix if we have one, else the camera target (handy on an emulator without GPS).
+        val fix = LocationBus.last
+        val fromLat = fix?.lat ?: m.cameraPosition.target?.latitude ?: return
+        val fromLon = fix?.lon ?: m.cameraPosition.target?.longitude ?: return
+
+        showRouteText(getString(R.string.routing))
+        Router.request(this, fromLat, fromLon, p.latitude, p.longitude) { outcome ->
+            if (destination != p) return@request // superseded
+            val r = outcome.route
+            if (r == null) {
+                showRouteText(getString(R.string.route_failed, outcome.error ?: "?"))
+                return@request
+            }
+            route = r
+            routeOverlay.setRoute(r)
+            showRouteText(
+                getString(
+                    R.string.route_summary,
+                    formatDistance(r.distanceM),
+                    formatDuration(r.durationS),
+                    getString(
+                        when (r.source) {
+                            Route.Source.MAPBOX -> R.string.src_mapbox
+                            Route.Source.OSRM -> R.string.src_osrm
+                            Route.Source.BROUTER -> R.string.src_brouter
+                        },
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun clearRoute() {
+        destination = null
+        route = null
+        routeOverlay.setRoute(null)
+        routeOverlay.setDestination(null)
+        binding.txtRoute.visibility = View.GONE
+    }
+
+    /** Back clears the route first; a second press leaves the app. */
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (destination != null) clearRoute() else super.onBackPressed()
+    }
+
+    private fun showRouteText(text: String) {
+        binding.txtRoute.text = text
+        binding.txtRoute.visibility = View.VISIBLE
+    }
+
+    private fun formatDistance(m: Double): String =
+        if (m >= 1000.0) getString(R.string.dist_km, m / 1000.0) else getString(R.string.dist_m, m.toInt())
+
+    private fun formatDuration(s: Double): String {
+        val min = (s / 60.0 + 0.5).toInt()
+        return if (min >= 60) getString(R.string.dur_h_min, min / 60, min % 60) else getString(R.string.dur_min, min)
     }
 
     // ---- Map picker ----

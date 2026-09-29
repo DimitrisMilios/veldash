@@ -49,6 +49,22 @@
         android:paddingEnd="@dimen/gap_large"
         android:text="@string/load_map" />
 
+    <!-- Route summary / routing status. Hidden until a destination is set. -->
+    <TextView
+        android:id="@+id/txt_route"
+        style="@style/Widget.Veldash.Hud"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="@dimen/gap_large"
+        android:gravity="center"
+        android:paddingStart="@dimen/gap_large"
+        android:paddingEnd="@dimen/gap_large"
+        android:paddingTop="@dimen/gap"
+        android:paddingBottom="@dimen/gap"
+        android:textSize="@dimen/text_body"
+        android:visibility="gone" />
+
     <!-- Shown only while follow mode is off (driver panned the map). -->
     <ImageButton
         android:id="@+id/btn_recenter"

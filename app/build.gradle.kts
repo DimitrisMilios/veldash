@@ -128,9 +128,13 @@ dependencies {
 
     implementation(libs.androidx.annotation)
 
-    // --- Offline routing (Step 4) ---
-    // BRouter has no Maven artifact. It will be added as a pure-Java source module
-    // (:brouter-core) in the offline-routing step. GraphHopper is deliberately NOT used:
-    // its graph loader alone exceeds our 60 MB RAM budget on a 1 GB head unit.
-    // implementation(project(":brouter-core"))
+    // --- Offline routing: embedded BRouter (pure Java, ~85 KB after R8). ---
+    // GraphHopper was rejected: its graph loader alone exceeds the 60 MB RAM budget on a 1 GB unit.
+    implementation(libs.brouter.core)
+    // Sibling module is runtime-scoped in the JitPack POM; the Java bridge needs OsmNode at compile time.
+    implementation(libs.brouter.mapaccess)
+
+    // JVM unit tests only. Real org.json shadows the android.jar stubs on the test classpath.
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

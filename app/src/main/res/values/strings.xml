@@ -17,4 +17,16 @@
     <string name="gps_searching">GPS</string>
     <string name="gps_off">GPS OFF</string>
     <string name="recenter">Recenter on batmobile</string>
+
+    <string name="routing">Routing…</string>
+    <string name="route_summary">%1$s · %2$s · %3$s</string>
+    <string name="route_failed">No route: %1$s</string>
+    <string name="no_position">No GPS position yet</string>
+    <string name="src_mapbox">Mapbox</string>
+    <string name="src_osrm">OSRM</string>
+    <string name="src_brouter">offline</string>
+    <string name="dist_m">%1$d m</string>
+    <string name="dist_km">%1$.1f km</string>
+    <string name="dur_min">%1$d min</string>
+    <string name="dur_h_min">%1$d h %2$d min</string>
 </resources>

@@ -3,6 +3,7 @@ package com.veldash
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.os.StrictMode
+import com.veldash.routing.Connectivity
 
 /**
  * Process entry point. Deliberately tiny: no DI, no analytics, no crash SDK.
@@ -15,6 +16,8 @@ class VeldashApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // One ConnectivityManager callback for the whole process. Drives online/offline routing choice.
+        Connectivity.start(this)
         if (BuildConfig.DEBUG) {
             // Debug only: catch main-thread disk/network access and leaked objects early.
             // Stripped from release by R8 (BuildConfig.DEBUG is a compile-time constant).

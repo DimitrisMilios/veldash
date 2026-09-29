@@ -89,10 +89,11 @@ class BatmobileMarker(private val context: Context) {
         return bmp
     }
 
-    private companion object {
-        const val IMAGE = "batmobile"
-        const val SOURCE = "batmobile-src"
+    companion object {
+        /** Public so other overlays can insert themselves below the car. */
         const val LAYER = "batmobile-layer"
-        const val PROP_BEARING = "bearing"
+        private const val IMAGE = "batmobile"
+        private const val SOURCE = "batmobile-src"
+        private const val PROP_BEARING = "bearing"
     }
 }
