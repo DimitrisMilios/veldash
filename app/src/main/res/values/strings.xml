@@ -9,4 +9,12 @@
     <string name="map_unreadable">Could not read map file:\n%1$s</string>
     <string name="attribution_osm">© OpenStreetMap contributors</string>
     <string name="ok">OK</string>
+
+    <string name="notif_channel">Navigation</string>
+    <string name="notif_gps">GPS active</string>
+    <string name="speed_kmh">%1$d</string>
+    <string name="speed_unit">km/h</string>
+    <string name="gps_searching">GPS</string>
+    <string name="gps_off">GPS OFF</string>
+    <string name="recenter">Recenter on batmobile</string>
 </resources>
