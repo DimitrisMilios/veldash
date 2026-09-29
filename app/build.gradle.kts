@@ -47,6 +47,10 @@ android {
 
     buildTypes {
         release {
+            // Signed with the auto-generated debug keystore (~/.android/debug.keystore) so release
+            // builds install and upload to App Distribution without a real keystore. Swap in a
+            // proper signingConfig before any store or wide release.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
