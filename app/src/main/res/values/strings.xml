@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Veldash</string>
+
+    <string name="no_map_loaded">No map loaded</string>
+    <string name="load_map">Load map</string>
+    <string name="pick_map">Select map</string>
+    <string name="no_maps_found">No .mbtiles files found.\n\nCopy a map file to:\n%1$s</string>
+    <string name="map_unreadable">Could not read map file:\n%1$s</string>
+    <string name="attribution_osm">© OpenStreetMap contributors</string>
+    <string name="ok">OK</string>
 </resources>

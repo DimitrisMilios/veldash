@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Single-level hierarchy. The MapView (a SurfaceView) is added programmatically at index 0
+    so every overlay below is composited above it. No nested layouts, no weights.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/map_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bat_black">
+
+    <TextView
+        android:id="@+id/txt_status"
+        style="@style/Widget.Veldash.Hud"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@null"
+        android:gravity="center"
+        android:padding="@dimen/gap_large"
+        android:text="@string/no_map_loaded"
+        android:textSize="@dimen/text_body" />
+
+    <Button
+        android:id="@+id/btn_load_map"
+        style="@style/Widget.Veldash.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/touch_target"
+        android:layout_gravity="top|end"
+        android:layout_margin="@dimen/gap"
+        android:paddingStart="@dimen/gap_large"
+        android:paddingEnd="@dimen/gap_large"
+        android:text="@string/load_map" />
+
+    <!-- OSM attribution is a licence requirement for OpenStreetMap-derived tiles. -->
+    <TextView
+        android:id="@+id/txt_attribution"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:padding="4dp"
+        android:text="@string/attribution_osm"
+        android:textColor="@color/bat_text_dim"
+        android:textSize="10sp" />
+
+</FrameLayout>
