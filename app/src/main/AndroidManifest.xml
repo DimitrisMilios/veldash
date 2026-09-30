@@ -64,6 +64,12 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode|locale|layoutDirection|fontScale|density">
 
+            <!-- Android Automotive OS blocks non-optimised activities while the car moves.
+                 A navigation UI must opt in. Ignored on regular Android head units. -->
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
