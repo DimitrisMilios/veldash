@@ -4,31 +4,34 @@
     <dimen name="touch_target">64dp</dimen>
     <dimen name="touch_target_large">80dp</dimen>
     <dimen name="gap">8dp</dimen>
+    <dimen name="gap_medium">12dp</dimen>
     <dimen name="gap_large">16dp</dimen>
+    <dimen name="gap_xl">24dp</dimen>
 
     <!-- HUD typography: readable at arm's length while driving. -->
-    <dimen name="text_speed">40sp</dimen>
-    <dimen name="text_turn">44sp</dimen>
-    <dimen name="text_maneuver">36sp</dimen>
+    <dimen name="text_speed">36sp</dimen>
+    <dimen name="text_turn">40sp</dimen>
+    <dimen name="text_trip">30sp</dimen>
     <dimen name="text_body">22sp</dimen>
-    <dimen name="text_caption">16sp</dimen>
+    <dimen name="text_caption_large">18sp</dimen>
+    <dimen name="text_caption">14sp</dimen>
 
-    <!-- HUD strip geometry (flat FrameLayout, positioned by margins). -->
-    <dimen name="hud_height">96dp</dimen>
-    <dimen name="hud_icon">80dp</dimen>
-    <dimen name="hud_text_start">100dp</dimen>
-    <dimen name="hud_street_top">62dp</dimen>
-    <dimen name="hud_speed_reserve">170dp</dimen>
+    <!-- Next-turn card (top-left) and speed badge (top-right). -->
+    <dimen name="hud_icon">64dp</dimen>
+    <dimen name="card_maneuver_min_width">300dp</dimen>
+    <dimen name="speed_badge">104dp</dimen>
+    <!-- Card end margin that keeps it clear of the speed badge: 104 + 16 + 16. -->
+    <dimen name="hud_speed_reserve">136dp</dimen>
 
-    <dimen name="route_line_width">7dp</dimen>
+    <!-- Bottom row. -->
+    <dimen name="bottom_margin">24dp</dimen>
+    <dimen name="btn_search_width">320dp</dimen>
+    <dimen name="card_trip_min_width">320dp</dimen>
+    <!-- Trip card end margin that keeps it clear of the action column: 80 + 16 + 16. -->
+    <dimen name="actions_reserve">112dp</dimen>
 
-    <!-- Bottom button row (flat FrameLayout, positioned by margins). -->
-    <dimen name="btn_search_width">176dp</dimen>
-    <dimen name="btn_load_map_start">192dp</dimen>
-    <!-- Follow-mode car overlay: same size as the map icon at 1.0 scale. -->
-    <dimen name="car_overlay_w">40dp</dimen>
-    <dimen name="car_overlay_h">60dp</dimen>
-    <!-- Centered above the 80dp recenter button: 16 + (80-64)/2 end, 16 + 80 + 8 bottom. -->
-    <dimen name="btn_view_mode_end">24dp</dimen>
-    <dimen name="btn_view_mode_bottom">104dp</dimen>
+    <dimen name="btn_go_width">120dp</dimen>
+    <dimen name="btn_primary_min_width">200dp</dimen>
+    <dimen name="empty_logo_width">180dp</dimen>
+    <dimen name="row_height">76dp</dimen>
 </resources>

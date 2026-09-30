@@ -49,6 +49,13 @@ coordinates as `lat, lon` (works offline). Tap a result to route to it. Long-pre
 save it as a favorite, or long-press a favorite to remove it. When a destination is set, the
 first row saves it as a favorite.
 
+While a route is active the trip card replaces "Where to?" at the bottom left: time left,
+distance and arrival time. Its ✕ ends the route (so does Back).
+
+The batmobile and bat-logo art comes from the full-size renders in `art/`. The APK ships
+trimmed, downscaled copies in `app/src/main/res/drawable-nodpi/` (`car_3d.png` is the chase view,
+`car_2d.png` the top-down view, `bat_logo.png` the destination pin).
+
 - **Online:** Mapbox Geocoding when `MAPBOX_TOKEN` is set, otherwise Nominatim (OSM). Nominatim
   is queried only on an explicit search, never per keystroke, per its usage policy.
 - **Offline:** favorites and coordinate input.

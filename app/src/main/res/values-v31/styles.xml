@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ system splash: black, not the default white, around the launcher bat. -->
+    <style name="Theme.Veldash" parent="Base.Theme.Veldash">
+        <item name="android:windowSplashScreenBackground">@color/bat_black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/bat_black</item>
+    </style>
+</resources>

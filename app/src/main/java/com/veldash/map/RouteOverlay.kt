@@ -1,9 +1,6 @@
 package com.veldash.map
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import com.veldash.R
 import com.veldash.routing.Route
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
@@ -14,7 +11,7 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
 /**
- * Route polyline + destination bat-signal. Two sources, two layers, inserted below the
+ * Route polyline + destination pin (the bat logo, [BatArt.pin]). Two sources, two layers, inserted below the
  * batmobile so the car always draws on top of the line.
  *
  * Geometry is handed to MapLibre as a GeoJSON string built directly from the primitive arrays.
@@ -28,7 +25,7 @@ class RouteOverlay(private val context: Context) {
 
     /** Adds sources/layers to a freshly loaded style, below [aboveLayerId]. */
     fun attach(style: Style, aboveLayerId: String, route: Route?, destination: LatLng?) {
-        style.addImage(IMAGE_DEST, rasterise())
+        style.addImage(IMAGE_DEST, BatArt.pin(context))
 
         val rs = GeoJsonSource(SRC_ROUTE, route?.let(::lineJson) ?: EMPTY)
         style.addSource(rs)
@@ -57,7 +54,9 @@ class RouteOverlay(private val context: Context) {
         style.addLayerBelow(
             SymbolLayer(LAYER_DEST, SRC_DEST).withProperties(
                 PropertyFactory.iconImage(IMAGE_DEST),
-                PropertyFactory.iconSize(1.5f),
+                PropertyFactory.iconSize(1f),
+                // The spike tip is the destination point.
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
@@ -100,15 +99,6 @@ class RouteOverlay(private val context: Context) {
     /** 6 decimals = 11 cm. Shorter strings, and no scientific notation from Double.toString. */
     private fun round6(v: Double): String = (Math.round(v * 1e6) / 1e6).toString()
 
-    private fun rasterise(): Bitmap {
-        val d = context.getDrawable(R.drawable.ic_bat)!!
-        val w = d.intrinsicWidth.coerceAtLeast(1)
-        val h = d.intrinsicHeight.coerceAtLeast(1)
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        d.setBounds(0, 0, w, h)
-        d.draw(Canvas(bmp))
-        return bmp
-    }
 
     private companion object {
         const val SRC_ROUTE = "route-src"

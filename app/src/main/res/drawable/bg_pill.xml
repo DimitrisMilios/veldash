@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plain state-list of solid rounded rectangles. No ripple = no RenderThread animation on every tap. -->
+<!-- Fully rounded bar (Where to?). A radius above half the height gives pill ends. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <corners android:radius="16dp" />
+            <corners android:radius="40dp" />
             <solid android:color="@color/bat_surface_high" />
             <stroke android:width="2dp" android:color="@color/bat_yellow" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <corners android:radius="16dp" />
+            <corners android:radius="40dp" />
             <solid android:color="@color/bat_surface" />
             <stroke android:width="2dp" android:color="@color/bat_outline" />
         </shape>

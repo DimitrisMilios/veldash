@@ -21,8 +21,8 @@
     <string name="view_2d">2D</string>
 
     <string name="routing">Routing…</string>
-    <string name="route_summary">%1$s · %2$s · %3$s</string>
-    <string name="route_failed">No route: %1$s</string>
+    <string name="route_summary_sub">%1$s · via %2$s</string>
+    <string name="route_failed">No route</string>
     <string name="no_position">No GPS position yet</string>
     <string name="src_mapbox">Mapbox</string>
     <string name="src_osrm">OSRM</string>
@@ -32,19 +32,20 @@
     <string name="dur_min">%1$d min</string>
     <string name="dur_h_min">%1$d h %2$d min</string>
 
-    <string name="nav_bottom">%1$s · %2$s · ETA %3$s</string>
+    <string name="trip_sub">%1$s · arrive %2$s</string>
+    <string name="end_route">End route</string>
     <string name="rerouting">Rerouting</string>
     <string name="arrived">Arrived</string>
 
     <string name="where_to">Where to?</string>
     <string name="search_hint">Address, place, or lat, lon</string>
     <string name="search">Go</string>
-    <string name="close">✕</string>
+    <string name="close">Close search</string>
     <string name="searching">Searching…</string>
     <string name="search_offline">Offline: favorites and coordinates only</string>
     <string name="search_failed">Search failed</string>
     <string name="no_results">No results</string>
-    <string name="save_destination">★ Save current destination</string>
+    <string name="save_destination">Save current destination</string>
     <string name="favorite_name">Favorite name</string>
     <string name="save">Save</string>
     <string name="remove">Remove</string>

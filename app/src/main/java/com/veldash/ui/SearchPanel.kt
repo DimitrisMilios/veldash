@@ -3,6 +3,8 @@ package com.veldash.ui
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -17,6 +19,7 @@ import android.widget.EditText
 import android.widget.TextView
 import com.veldash.R
 import com.veldash.databinding.ActivityMainBinding
+import com.veldash.map.BatArt
 import com.veldash.routing.Connectivity
 import com.veldash.search.Favorites
 import com.veldash.search.Geocoder
@@ -204,6 +207,9 @@ class SearchPanel(
         private val inflater = LayoutInflater.from(activity)
         private val dimColor = color(R.color.bat_text_dim)
         private val starColor = color(R.color.bat_yellow)
+        // Row icons, one instance each (a drawable can back many TextViews while it is not mutated).
+        private val starIcon: Drawable = activity.getDrawable(R.drawable.ic_star)!!
+        private val placeIcon: Drawable = BitmapDrawable(activity.resources, BatArt.logoIcon(activity))
 
         override fun getCount(): Int = rows.size
         override fun getItem(position: Int): Any = rows[position]
@@ -215,12 +221,14 @@ class SearchPanel(
             val row = rows[position]
             val p = row.place
             if (p == null) {
+                val save = row.label == activity.getString(R.string.save_destination)
                 tv.text = row.label
-                tv.setTextColor(if (row.label == activity.getString(R.string.save_destination)) starColor else dimColor)
+                tv.setTextColor(if (save) starColor else dimColor)
+                tv.setCompoundDrawablesRelativeWithIntrinsicBounds(if (save) starIcon else null, null, null, null)
                 return tv
             }
+            tv.setCompoundDrawablesRelativeWithIntrinsicBounds(if (row.favorite) starIcon else placeIcon, null, null, null)
             val sb = SpannableStringBuilder()
-            if (row.favorite) sb.append("★ ")
             sb.append(p.name)
             if (p.detail.isNotEmpty()) {
                 val start = sb.length

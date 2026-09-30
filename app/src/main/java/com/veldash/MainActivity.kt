@@ -19,6 +19,7 @@ import com.veldash.databinding.ActivityMainBinding
 import com.veldash.location.Fix
 import com.veldash.location.LocationBus
 import com.veldash.location.LocationService
+import com.veldash.map.BatArt
 import com.veldash.map.BatStyle
 import com.veldash.map.BatmobileMarker
 import com.veldash.map.MapFile
@@ -69,7 +70,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     private var map: MapLibreMap? = null
     private var current: MapFile? = null
 
-    private val marker = BatmobileMarker(this)
+    private val marker = BatmobileMarker()
     private val routeOverlay = RouteOverlay(this)
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -179,6 +180,9 @@ class MainActivity : Activity(), LocationBus.Listener {
         }
 
         binding.btnLoadMap.setOnClickListener { pickMap() }
+        binding.btnEmptyLoadMap.setOnClickListener { pickMap() }
+        binding.btnEndRoute.setOnClickListener { clearRoute() }
+        binding.btnRecenter.setImageBitmap(BatArt.car(this, view3d = false))
         binding.btnRecenter.setOnClickListener { setFollow(true) }
         binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
 
@@ -188,7 +192,6 @@ class MainActivity : Activity(), LocationBus.Listener {
             view3d = !view3d
             prefs.view3d = view3d
             updateViewModeButton()
-            carOverlayY = -1f // overlay target point moves with the padding
             // Re-aim immediately from the last known position; otherwise the next fix applies it.
             if (follow) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
         }
@@ -258,15 +261,15 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     private var carOverlayShown = false
     private var carOverlayY = -1f
+    private var carOverlayH = 0
 
     private fun showCarOverlay(show: Boolean) {
         if (show) {
             // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
             val h = mapView.height.toFloat()
             val pad = if (view3d) PAD_TOP_3D else PAD_TOP_2D
-            // Use the dimen, not view.height: the view is GONE (unmeasured) the first time through.
-            val carH = resources.getDimensionPixelSize(R.dimen.car_overlay_h)
-            val y = h * (1f + pad.toFloat()) / 2f - carH / 2f
+            // Bitmap height, not view.height: the view is GONE (unmeasured) the first time through.
+            val y = h * (1f + pad.toFloat()) / 2f - carOverlayH / 2f
             if (y != carOverlayY) {
                 carOverlayY = y
                 binding.imgCar.y = y
@@ -418,8 +421,14 @@ class MainActivity : Activity(), LocationBus.Listener {
         applyMotion()
     }
 
+    /** Toggle label plus the batmobile art: rear chase render in 3D, overhead render in 2D. */
     private fun updateViewModeButton() {
         binding.btnViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
+        val art = BatArt.car(this, view3d)
+        binding.imgCar.setImageBitmap(art)
+        carOverlayH = art.height
+        carOverlayY = -1f // overlay target point moves with the padding and the car size
+        marker.setArt(art)
     }
 
     /**
@@ -536,13 +545,13 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun loadSavedMap() {
         val path = prefs.mapPath
         if (path == null) {
-            showStatus(getString(R.string.no_map_loaded))
+            showStatus(getString(R.string.no_map_loaded), canLoad = true)
             return
         }
         Bg.compute({ MapFile.read(File(path)) }) { mapFile ->
             if (mapFile == null) {
                 prefs.mapPath = null
-                showStatus(getString(R.string.no_map_loaded))
+                showStatus(getString(R.string.no_map_loaded), canLoad = true)
             } else {
                 show(mapFile)
             }
@@ -560,7 +569,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         // Style JSON is built on the main thread: it is string concatenation, sub-millisecond.
         val json = BatStyle.build(this, mapFile)
         m.setStyle(Style.Builder().fromJson(json)) { style ->
-            binding.txtStatus.visibility = View.GONE
+            binding.panelEmpty.visibility = View.GONE
 
             // Clamp zoom to what the file contains (+3 overzoom for vector: z14 tiles carry full
             // detail and the GPU just scales the geometry, so z17 costs no extra tiles).
@@ -591,9 +600,11 @@ class MainActivity : Activity(), LocationBus.Listener {
         }
     }
 
-    private fun showStatus(text: String) {
+    /** Centre card over the empty map: status text, plus a load button when there is nothing to show. */
+    private fun showStatus(text: String, canLoad: Boolean = false) {
         binding.txtStatus.text = text
-        binding.txtStatus.visibility = View.VISIBLE
+        binding.btnEmptyLoadMap.visibility = if (canLoad) View.VISIBLE else View.GONE
+        binding.panelEmpty.visibility = View.VISIBLE
     }
 
     // ---- Map picker ----

@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One row of the search list. A single TextView; name and detail are spans in one string. -->
+<!-- One row of the search list. A single TextView: the icon is a compound drawable, name and
+     detail are spans in one string. Transparent so the list's pressed selector shows through. -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/bat_black"
+    android:drawablePadding="@dimen/gap_large"
     android:fontFamily="sans-serif-condensed"
     android:gravity="center_vertical"
-    android:minHeight="@dimen/touch_target"
+    android:minHeight="@dimen/row_height"
     android:paddingStart="@dimen/gap_large"
     android:paddingEnd="@dimen/gap_large"
     android:paddingTop="@dimen/gap"
