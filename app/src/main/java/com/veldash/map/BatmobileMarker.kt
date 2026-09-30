@@ -41,8 +41,10 @@ class BatmobileMarker(private val context: Context) {
             PropertyFactory.iconSize(1f),
             PropertyFactory.iconAllowOverlap(true),
             PropertyFactory.iconIgnorePlacement(true),
-            // Rotate with the map, not the screen, so the car points along the road.
+            // Rotate with the map, not the screen, so the car points along the road...
             PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+            // ...but draw it flat to the screen so the pitched 3D view does not squash it.
+            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
             PropertyFactory.iconRotate(Expression.get(PROP_BEARING)),
             PropertyFactory.visibility(if (fix != null) Property.VISIBLE else Property.NONE),
         )

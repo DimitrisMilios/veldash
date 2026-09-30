@@ -129,6 +129,17 @@
         android:paddingEnd="@dimen/gap_large"
         android:text="@string/load_map" />
 
+    <!-- 3D chase view / 2D top-down toggle. Sits above the recenter button. -->
+    <Button
+        android:id="@+id/btn_view_mode"
+        style="@style/Widget.Veldash.Button"
+        android:layout_width="@dimen/touch_target"
+        android:layout_height="@dimen/touch_target"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="@dimen/btn_view_mode_end"
+        android:layout_marginBottom="@dimen/btn_view_mode_bottom"
+        android:text="@string/view_3d" />
+
     <!-- Shown only while follow mode is off (driver panned the map). -->
     <ImageButton
         android:id="@+id/btn_recenter"

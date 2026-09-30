@@ -32,6 +32,16 @@ class RouteOverlay(private val context: Context) {
 
         val rs = GeoJsonSource(SRC_ROUTE, route?.let(::lineJson) ?: EMPTY)
         style.addSource(rs)
+        // Dark casing under the bright line: keeps the route readable over yellow motorways.
+        style.addLayerBelow(
+            LineLayer(LAYER_ROUTE_CASING, SRC_ROUTE).withProperties(
+                PropertyFactory.lineColor(CASING_COLOR),
+                PropertyFactory.lineWidth(ROUTE_WIDTH + CASING_EXTRA),
+                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+            ),
+            aboveLayerId,
+        )
         style.addLayerBelow(
             LineLayer(LAYER_ROUTE, SRC_ROUTE).withProperties(
                 PropertyFactory.lineColor(ROUTE_COLOR),
@@ -50,6 +60,7 @@ class RouteOverlay(private val context: Context) {
                 PropertyFactory.iconSize(1.5f),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
             ),
             aboveLayerId,
         )
@@ -102,12 +113,15 @@ class RouteOverlay(private val context: Context) {
     private companion object {
         const val SRC_ROUTE = "route-src"
         const val LAYER_ROUTE = "route-line"
+        const val LAYER_ROUTE_CASING = "route-casing"
         const val SRC_DEST = "dest-src"
         const val LAYER_DEST = "dest-bat"
         const val IMAGE_DEST = "bat-signal"
 
         const val ROUTE_COLOR = "#FFE600"
-        const val ROUTE_WIDTH = 7f
+        const val CASING_COLOR = "#000000"
+        const val ROUTE_WIDTH = 8f
+        const val CASING_EXTRA = 4f
 
         const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
     }

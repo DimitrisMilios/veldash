@@ -79,12 +79,16 @@ after panning around. Numbers are `dumpsys meminfo` PSS / private dirty.
 |---|---|---|---|
 | Tile cache on, prefetch 2, buildings | 70 MB | 128 MB | 86 MB |
 | Tile cache off, prefetch 0, buildings | 28 MB | 82 MB | 42 MB |
-| Tile cache off, prefetch 0, no buildings (shipped) | 25 MB | 78 MB | 38 MB |
+| Tile cache off, prefetch 0, no buildings, 2D | 25 MB | 78 MB | 38 MB |
+| Rich style (casings, landcover, buildings z16+), 2D | 36 MB | 83 MB | 51 MB |
+| Rich style, 3D chase view (pitch 50), during a drive | 40-45 MB | 86-93 MB | 53-61 MB |
 
 The tile cache is the dominant cost: it retains every tile ever shown. With local `.mbtiles`
 a tile reloads in milliseconds, so the cache buys nothing and is disabled in `MapSetup`.
-Buildings are off by default (`BatStyle.SHOW_BUILDINGS`). About 35 MB of the PSS is shared
-system libraries and file-backed code that the kernel can evict.
+Of the 3D figures, live allocations are only ~31-33 MB; the rest is freed pages the native
+allocator keeps after tile churn. Buildings (`BatStyle.SHOW_BUILDINGS`) cost ~4 MB and can be
+switched off for the absolute minimum. About 35 MB of the PSS is shared system libraries and
+file-backed code that the kernel can evict.
 
 ## Testing on the Automotive emulator
 

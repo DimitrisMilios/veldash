@@ -21,6 +21,9 @@ object MapSetup {
      */
     private const val PREFETCH_ZOOM_DELTA = 0
 
+    /** Chase-camera pitch. Beyond ~55 the horizon pulls in many far tiles per frame. */
+    const val MAX_PITCH = 50.0
+
     /** Options for the programmatic MapView constructor. */
     fun options(context: Context): MapLibreMapOptions =
         MapLibreMapOptions.createFromAttributes(context)
@@ -28,9 +31,10 @@ object MapSetup {
             .textureMode(false)
             .translucentTextureSurface(false)
             .foregroundLoadColor(Color.BLACK)
-            // Flat 2D: pitch clamped to 0 so no perspective transform, no 3D building geometry.
+            // Pitch is capped, not banned: the 3D chase view uses MAX_PITCH; no 3D buildings exist
+            // in the style, so this is only a perspective transform, not extra geometry.
             .minPitchPreference(0.0)
-            .maxPitchPreference(0.0)
+            .maxPitchPreference(MAX_PITCH)
             .tiltGesturesEnabled(false)
             .rotateGesturesEnabled(false)
             .scrollGesturesEnabled(true)
@@ -55,7 +59,7 @@ object MapSetup {
         map.setTileCacheEnabled(false)
         map.setDebugActive(false)
         map.setMinPitchPreference(0.0)
-        map.setMaxPitchPreference(0.0)
+        map.setMaxPitchPreference(MAX_PITCH)
         map.uiSettings.apply {
             isCompassEnabled = false
             isLogoEnabled = false

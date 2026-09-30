@@ -78,6 +78,9 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     /** Camera tracks the batmobile, heading-up. Switched off by a pan gesture, on by the recenter button. */
     private var follow = true
+
+    /** 3D chase view (pitched, car in the lower third) vs flat top-down. Persisted. */
+    private var view3d = true
     private var askedLocation = false
 
     /** Every 2 s: if no fix arrived recently, grey out the speed readout. */
@@ -146,6 +149,16 @@ class MainActivity : Activity(), LocationBus.Listener {
         binding.btnLoadMap.setOnClickListener { pickMap() }
         binding.btnRecenter.setOnClickListener { setFollow(true) }
         binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
+
+        view3d = prefs.view3d
+        updateViewModeButton()
+        binding.btnViewMode.setOnClickListener {
+            view3d = !view3d
+            prefs.view3d = view3d
+            updateViewModeButton()
+            // Re-aim immediately from the last known position; otherwise the next fix applies it.
+            if (follow) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+        }
 
         handleGeoIntent(intent)
     }
@@ -311,23 +324,38 @@ class MainActivity : Activity(), LocationBus.Listener {
         if (follow == on) return
         follow = on
         binding.btnRecenter.visibility = if (on) View.GONE else View.VISIBLE
-        if (on) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true) }
+        if (on) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+    }
+
+    private fun updateViewModeButton() {
+        binding.btnViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
     }
 
     /**
-     * Heading-up chase camera. One linear ease per fix, lasting exactly the fix interval, so
+     * Heading-up follow camera. One linear ease per fix, lasting exactly the fix interval, so
      * consecutive eases chain into continuous motion instead of a stop-start stutter.
+     *
+     * 3D: pitched [MapSetup.MAX_PITCH], car in the lower third (top padding pushes the target
+     * down the screen), zoom [NAV_ZOOM_3D]. 2D: flat, car slightly below centre, [NAV_ZOOM_2D].
+     * The driver's pinch zoom is kept while it stays within a sane navigation range, unless
+     * [forceZoom] (mode switch, recenter) resets it.
      */
-    private fun followCamera(lat: Double, lon: Double, bearing: Float, animate: Boolean) {
+    private fun followCamera(lat: Double, lon: Double, bearing: Float, animate: Boolean, forceZoom: Boolean = false) {
         val m = map ?: return
         if (m.style?.isFullyLoaded != true) return
-        val zoom = if (m.cameraPosition.zoom < MIN_FOLLOW_ZOOM) NAV_ZOOM else m.cameraPosition.zoom
-        val pos = CameraPosition.Builder()
+        val h = mapView.height.toDouble()
+        val current = m.cameraPosition.zoom
+        val builder = CameraPosition.Builder()
             .target(LatLng(lat, lon))
             .bearing(bearing.toDouble())
-            .zoom(zoom)
-            .build()
-        val update = CameraUpdateFactory.newCameraPosition(pos)
+        if (view3d) {
+            val zoom = if (!forceZoom && current in MIN_FOLLOW_ZOOM..MAX_FOLLOW_ZOOM) current else NAV_ZOOM_3D
+            builder.tilt(MapSetup.MAX_PITCH).zoom(zoom).padding(0.0, h * PAD_TOP_3D, 0.0, 0.0)
+        } else {
+            val zoom = if (!forceZoom && current in MIN_FOLLOW_ZOOM..MAX_FOLLOW_ZOOM) current else NAV_ZOOM_2D
+            builder.tilt(0.0).zoom(zoom).padding(0.0, h * PAD_TOP_2D, 0.0, 0.0)
+        }
+        val update = CameraUpdateFactory.newCameraPosition(builder.build())
         if (animate) m.easeCamera(update, FOLLOW_EASE_MS, false) else m.moveCamera(update)
     }
 
@@ -434,9 +462,9 @@ class MainActivity : Activity(), LocationBus.Listener {
         m.setStyle(Style.Builder().fromJson(json)) { style ->
             binding.txtStatus.visibility = View.GONE
 
-            // Clamp zoom to what the file contains (+2 overzoom for vector, which scales geometry
-            // instead of loading tiles that do not exist).
-            val overzoom = if (mapFile.isVector) 2.0 else 0.0
+            // Clamp zoom to what the file contains (+3 overzoom for vector: z14 tiles carry full
+            // detail and the GPU just scales the geometry, so z17 costs no extra tiles).
+            val overzoom = if (mapFile.isVector) 3.0 else 0.0
             m.setMinZoomPreference(mapFile.minZoom.toDouble())
             m.setMaxZoomPreference(mapFile.maxZoom + overzoom)
 
@@ -449,7 +477,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             val center = mapFile.center
             val bounds = mapFile.bounds
             when {
-                fix != null && follow -> followCamera(fix.lat, fix.lon, fix.bearing, animate = false)
+                fix != null && follow -> followCamera(fix.lat, fix.lon, fix.bearing, animate = false, forceZoom = true)
                 center != null -> m.moveCamera(
                     CameraUpdateFactory.newLatLngZoom(center, mapFile.centerZoom ?: DEFAULT_ZOOM),
                 )
@@ -505,8 +533,14 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val REQ_LOCATION = 2
 
         const val DEFAULT_ZOOM = 12.0
-        const val NAV_ZOOM = 16.0
-        const val MIN_FOLLOW_ZOOM = 13.0
+        const val NAV_ZOOM_2D = 16.0
+        const val NAV_ZOOM_3D = 17.0
+        const val MIN_FOLLOW_ZOOM = 14.0
+        const val MAX_FOLLOW_ZOOM = 18.0
+
+        /** Fraction of the view height used as top padding: puts the car at 75% / 65% down. */
+        const val PAD_TOP_3D = 0.5
+        const val PAD_TOP_2D = 0.3
 
         /** Matches the GPS interval so eases chain seamlessly. */
         const val FOLLOW_EASE_MS = 1000

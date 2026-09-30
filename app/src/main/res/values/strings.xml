@@ -17,6 +17,8 @@
     <string name="gps_searching">GPS</string>
     <string name="gps_off">GPS OFF</string>
     <string name="recenter">Recenter on batmobile</string>
+    <string name="view_3d">3D</string>
+    <string name="view_2d">2D</string>
 
     <string name="routing">Routing…</string>
     <string name="route_summary">%1$s · %2$s · %3$s</string>
