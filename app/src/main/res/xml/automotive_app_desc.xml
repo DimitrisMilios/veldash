@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Automotive OS app descriptor: identifies Veldash as a navigation app so its
+     distraction-optimised activity is allowed while the vehicle moves. Ignored elsewhere. -->
+<automotiveApp>
+    <uses name="navigation" />
+</automotiveApp>

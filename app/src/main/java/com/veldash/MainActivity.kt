@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -25,6 +26,7 @@ import com.veldash.map.MapRepository
 import com.veldash.map.MapSetup
 import com.veldash.map.RouteOverlay
 import com.veldash.nav.Navigator
+import com.veldash.nav.SmoothMotion
 import com.veldash.routing.OfflineRouter
 import com.veldash.routing.Route
 import com.veldash.routing.Router
@@ -75,6 +77,36 @@ class MainActivity : Activity(), LocationBus.Listener {
     private var route: Route? = null
     private var navigator: Navigator? = null
     private var lastRerouteMs = 0L
+
+    // ---- Frame-driven motion: the car and camera glide between 1 Hz fixes ----
+    private val motion = SmoothMotion()
+    private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
+    private var animating = false
+    private var lastFrameNs = 0L
+    private var lastApplyNs = 0L
+    private var lastHudNs = 0L
+
+    /** While a deliberate camera ease (mode switch, recenter) plays, per-frame camera moves pause. */
+    private var cameraHoldUntilMs = 0L
+
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!animating) return
+            if (lastFrameNs != 0L) motion.step((frameTimeNanos - lastFrameNs) / 1e9)
+            lastFrameNs = frameTimeNanos
+            if (frameTimeNanos - lastApplyNs >= APPLY_INTERVAL_NS) {
+                lastApplyNs = frameTimeNanos
+                applyMotion()
+            }
+            if (frameTimeNanos - lastHudNs >= HUD_INTERVAL_NS) {
+                lastHudNs = frameTimeNanos
+                val nav = navigator
+                if (nav != null && motion.onRoute) hud.updateTurnDistance(nav.distanceToNextAt(motion.distAlongM))
+            }
+            // Keep stepping while fixes keep coming; go idle (zero CPU) when GPS goes quiet.
+            if (LocationBus.isFresh(IDLE_AFTER_MS)) choreographer.postFrameCallback(this) else animating = false
+        }
+    }
 
     /** Camera tracks the batmobile, heading-up. Switched off by a pan gesture, on by the recenter button. */
     private var follow = true
@@ -156,6 +188,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             view3d = !view3d
             prefs.view3d = view3d
             updateViewModeButton()
+            carOverlayY = -1f // overlay target point moves with the padding
             // Re-aim immediately from the last known position; otherwise the next fix applies it.
             if (follow) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
         }
@@ -189,6 +222,62 @@ class MainActivity : Activity(), LocationBus.Listener {
         ensureLocationPermission()
     }
 
+    private fun startAnimating() {
+        if (animating) return
+        animating = true
+        lastFrameNs = 0L
+        choreographer.postFrameCallback(frameCallback)
+    }
+
+    private fun stopAnimating() {
+        animating = false
+        choreographer.removeFrameCallback(frameCallback)
+    }
+
+    /**
+     * Push the interpolated position to the car and, when following, the camera.
+     *
+     * Following: the camera is moved so the car is at a fixed screen point, and the car is drawn
+     * as the screen overlay at exactly that point (heading-up, so it always points straight up).
+     * A map-layer marker would lag the camera by a frame and visibly jitter.
+     * Not following (or during a mode-switch ease): the map-layer marker is used instead.
+     */
+    private fun applyMotion() {
+        if (!motion.hasPosition) return
+        val useOverlay = follow && SystemClock.uptimeMillis() >= cameraHoldUntilMs
+        if (useOverlay) {
+            followCamera(motion.lat, motion.lon, motion.bearing, animate = false)
+            marker.setShown(false)
+            showCarOverlay(true)
+        } else {
+            marker.update(motion.lat, motion.lon, motion.bearing)
+            marker.setShown(true)
+            showCarOverlay(false)
+        }
+    }
+
+    private var carOverlayShown = false
+    private var carOverlayY = -1f
+
+    private fun showCarOverlay(show: Boolean) {
+        if (show) {
+            // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
+            val h = mapView.height.toFloat()
+            val pad = if (view3d) PAD_TOP_3D else PAD_TOP_2D
+            // Use the dimen, not view.height: the view is GONE (unmeasured) the first time through.
+            val carH = resources.getDimensionPixelSize(R.dimen.car_overlay_h)
+            val y = h * (1f + pad.toFloat()) / 2f - carH / 2f
+            if (y != carOverlayY) {
+                carOverlayY = y
+                binding.imgCar.y = y
+            }
+        }
+        if (show != carOverlayShown) {
+            carOverlayShown = show
+            binding.imgCar.visibility = if (show) View.VISIBLE else View.GONE
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         mapView.onResume()
@@ -200,6 +289,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     }
 
     override fun onStop() {
+        stopAnimating()
         mainHandler.removeCallbacks(staleTick)
         LocationBus.remove(this)
         mapView.onStop()
@@ -278,42 +368,39 @@ class MainActivity : Activity(), LocationBus.Listener {
     }
 
     /**
-     * One fix per second drives everything: HUD, marker, camera, off-route detection.
-     * While on a route the car and camera use the snapped position and the road bearing,
-     * which keeps the batmobile glued to the line instead of wandering with GPS noise.
+     * One fix per second drives the logic: HUD, off-route detection, and a new target for
+     * [motion]. The marker and camera themselves are moved per frame by [frameCallback], so
+     * the batmobile glides along the road and sweeps through turns instead of stepping.
      */
     override fun onFix(fix: Fix) {
         hud.showSpeed((fix.speedKmh + 0.5f).toInt())
 
-        var lat = fix.lat
-        var lon = fix.lon
-        var bearing = fix.bearing
-
+        var state: com.veldash.nav.NavState? = null
         val nav = navigator
         if (nav != null) {
             val s = nav.update(fix.lat, fix.lon)
             when {
                 s.arrived -> {
                     navigator = null
+                    motion.setNavigator(null)
                     hud.showArrived()
                 }
                 nav.isOffRoute -> {
                     hud.showRerouting()
                     maybeReroute(fix)
+                    state = s
                 }
                 else -> {
                     hud.showNavigation(s)
-                    if (s.onRoute && fix.speedKmh >= SNAP_MIN_KMH) {
-                        lat = s.snappedLat
-                        lon = s.snappedLon
-                        bearing = s.roadBearing
-                    }
+                    state = s
                 }
             }
         }
 
-        marker.update(lat, lon, bearing)
-        if (follow) followCamera(lat, lon, bearing, animate = true)
+        val first = !motion.hasPosition
+        motion.onFix(fix.lat, fix.lon, fix.bearing, fix.speedKmh, state)
+        if (first) applyMotion()
+        startAnimating()
     }
 
     override fun onGpsAvailable(available: Boolean) {
@@ -324,7 +411,11 @@ class MainActivity : Activity(), LocationBus.Listener {
         if (follow == on) return
         follow = on
         binding.btnRecenter.visibility = if (on) View.GONE else View.VISIBLE
-        if (on) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+        if (on) {
+            LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+        }
+        // Swap between overlay and map marker right away (the ease hold keeps the marker up briefly).
+        applyMotion()
     }
 
     private fun updateViewModeButton() {
@@ -356,7 +447,14 @@ class MainActivity : Activity(), LocationBus.Listener {
             builder.tilt(0.0).zoom(zoom).padding(0.0, h * PAD_TOP_2D, 0.0, 0.0)
         }
         val update = CameraUpdateFactory.newCameraPosition(builder.build())
-        if (animate) m.easeCamera(update, FOLLOW_EASE_MS, false) else m.moveCamera(update)
+        if (animate) {
+            // Deliberate transition (mode switch, recenter): ease, and keep the frame loop's
+            // hands off the camera until it lands.
+            cameraHoldUntilMs = SystemClock.uptimeMillis() + CAMERA_EASE_MS
+            m.easeCamera(update, CAMERA_EASE_MS, true)
+        } else {
+            m.moveCamera(update)
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -385,6 +483,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         destination = p
         route = null
         navigator = null
+        motion.setNavigator(null)
         routeOverlay.setDestination(p)
         routeOverlay.setRoute(null)
 
@@ -414,7 +513,7 @@ class MainActivity : Activity(), LocationBus.Listener {
                 return@request
             }
             route = r
-            navigator = Navigator(r)
+            navigator = Navigator(r).also { motion.setNavigator(it) }
             routeOverlay.setRoute(r)
             hud.showRouteSummary(r)
             // Drive the HUD immediately rather than waiting for the next fix.
@@ -426,6 +525,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         destination = null
         route = null
         navigator = null
+        motion.setNavigator(null)
         routeOverlay.setRoute(null)
         routeOverlay.setDestination(null)
         hud.showIdle()
@@ -542,12 +642,16 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val PAD_TOP_3D = 0.5
         const val PAD_TOP_2D = 0.3
 
-        /** Matches the GPS interval so eases chain seamlessly. */
-        const val FOLLOW_EASE_MS = 1000
+        /** Mode switch / recenter transition length. */
+        const val CAMERA_EASE_MS = 600
         const val STALE_TICK_MS = 2000L
-
-        /** Below this the car sits on the raw fix; snapping a parked car looks wrong. */
-        const val SNAP_MIN_KMH = 3f
         const val REROUTE_MIN_MS = 10_000L
+
+        /** Marker + camera update rate while moving: 30 Hz is smooth and half the GPU cost of 60. */
+        const val APPLY_INTERVAL_NS = 33_000_000L
+        /** Turn-distance countdown refresh. */
+        const val HUD_INTERVAL_NS = 250_000_000L
+        /** Stop the frame loop entirely once fixes have been absent this long. */
+        const val IDLE_AFTER_MS = 6_000L
     }
 }

@@ -38,6 +38,9 @@ class LocationService : Service(), LocationListener {
     private var prev: Location? = null
     private var stickyBearing = 0f
 
+    /** Low-pass state for speed derived from movement; -1 = none yet. */
+    private var derivedKmh = -1f
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -112,8 +115,19 @@ class LocationService : Service(), LocationListener {
 
         var speedKmh = when {
             location.hasSpeed() && location.speed > 0f -> location.speed * MPS_TO_KMH
-            moved -> distM / dtS * MPS_TO_KMH
-            else -> 0f
+            // Derived speed: only over a decent interval (two fixes 0.3 s apart would read 3x
+            // too fast), and low-pass filtered so the readout does not flicker.
+            moved && dtS >= MIN_DERIVE_DT_S -> {
+                val raw = distM / dtS * MPS_TO_KMH
+                val filtered = if (derivedKmh < 0f) raw else derivedKmh + (raw - derivedKmh) * DERIVED_ALPHA
+                derivedKmh = filtered
+                filtered
+            }
+            moved -> if (derivedKmh >= 0f) derivedKmh else 0f
+            else -> {
+                derivedKmh = -1f
+                0f
+            }
         }
         // Reject implausible jumps (multipath, cold-start relocation) from the derived speed.
         if (!location.hasSpeed() && speedKmh > MAX_DERIVED_KMH) speedKmh = 0f
@@ -216,6 +230,8 @@ class LocationService : Service(), LocationListener {
         private const val MIN_BEARING_DIST_M = 3f
         private const val MIN_BEARING_SPEED_KMH = 4f
         private const val MAX_DERIVED_KMH = 250f
+        private const val MIN_DERIVE_DT_S = 0.6f
+        private const val DERIVED_ALPHA = 0.5f
 
         private const val NOTIF_ID = 1
         private const val CHANNEL_ID = "nav"

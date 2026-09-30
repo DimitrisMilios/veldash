@@ -25,6 +25,9 @@
     <!-- Bottom button row (flat FrameLayout, positioned by margins). -->
     <dimen name="btn_search_width">176dp</dimen>
     <dimen name="btn_load_map_start">192dp</dimen>
+    <!-- Follow-mode car overlay: same size as the map icon at 1.0 scale. -->
+    <dimen name="car_overlay_w">40dp</dimen>
+    <dimen name="car_overlay_h">60dp</dimen>
     <!-- Centered above the 80dp recenter button: 16 + (80-64)/2 end, 16 + 80 + 8 bottom. -->
     <dimen name="btn_view_mode_end">24dp</dimen>
     <dimen name="btn_view_mode_bottom">104dp</dimen>

@@ -22,6 +22,19 @@
         android:text="@string/no_map_loaded"
         android:textSize="@dimen/text_body" />
 
+    <!-- Batmobile as a screen overlay while the camera follows: the camera's target point is a
+         fixed screen position, so drawing the car here is jitter-free (a map-layer marker lags
+         the camera by a frame). Positioned in code; hidden when the driver pans the map. -->
+    <ImageView
+        android:id="@+id/img_car"
+        android:layout_width="@dimen/car_overlay_w"
+        android:layout_height="@dimen/car_overlay_h"
+        android:layout_gravity="top|center_horizontal"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_batmobile"
+        android:visibility="gone" />
+
     <!-- ===== Top HUD strip (visible while navigating) ===== -->
 
     <View

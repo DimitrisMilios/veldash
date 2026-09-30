@@ -41,6 +41,11 @@
         android:requestLegacyExternalStorage="true"
         tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
 
+        <!-- Android Automotive OS: declare ourselves a navigation app (see res/xml). -->
+        <meta-data
+            android:name="com.android.automotive"
+            android:resource="@xml/automotive_app_desc" />
+
         <!-- Remove the androidx.startup ContentProvider that MapLibre's transitive deps register.
              It would run on process start, before our Application, for nothing we use. -->
         <provider

@@ -57,14 +57,32 @@ class BatmobileMarker(private val context: Context) {
 
     fun update(fix: Fix) = update(fix.lat, fix.lon, fix.bearing)
 
-    /** Position the car explicitly, e.g. at the route-snapped point while navigating. */
+    /**
+     * Position the car. Called up to 30 times a second while moving, so the GeoJSON is written
+     * as a string straight into a reused StringBuilder: no Feature/Point objects, no Gson.
+     */
     fun update(lat: Double, lon: Double, bearing: Float) {
         val src = source ?: return
-        src.setGeoJson(feature(lat, lon, bearing))
+        val sb = json
+        sb.setLength(0)
+        sb.append("{\"type\":\"Feature\",\"properties\":{\"").append(PROP_BEARING).append("\":")
+            .append(bearing).append("},\"geometry\":{\"type\":\"Point\",\"coordinates\":[")
+            .append(lon).append(',').append(lat).append("]}}")
+        src.setGeoJson(sb.toString())
         if (!visible) {
             layer?.setProperties(PropertyFactory.visibility(Property.VISIBLE))
             visible = true
         }
+    }
+
+    private val json = StringBuilder(160)
+
+    /** Hide/show the map-layer car (hidden while the screen overlay is used in follow mode). */
+    fun setShown(shown: Boolean) {
+        if (shown == visible) return
+        val lyr = layer ?: return
+        lyr.setProperties(PropertyFactory.visibility(if (shown) Property.VISIBLE else Property.NONE))
+        visible = shown
     }
 
     fun detach() {

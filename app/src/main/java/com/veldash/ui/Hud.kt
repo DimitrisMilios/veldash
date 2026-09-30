@@ -66,6 +66,12 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
         )
     }
 
+    /** Frame-loop countdown between fixes. Only touches the view when the rounded text changes. */
+    fun updateTurnDistance(m: Double) {
+        if (b.hudBg.visibility != View.VISIBLE) return
+        setTurn(formatTurnDistance(m))
+    }
+
     fun showRerouting() {
         setPanelVisible(true)
         setIcon(R.drawable.ic_turn_straight)

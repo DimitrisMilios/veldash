@@ -61,6 +61,36 @@ class Navigator(val route: Route) {
 
     val totalM: Double get() = cum[n - 1]
 
+    /** Mutable output holder so the per-frame caller allocates nothing. */
+    class RoutePoint(var lat: Double = 0.0, var lon: Double = 0.0, var bearing: Float = 0f)
+
+    /**
+     * Position and segment bearing at [distAlongM] metres from the start, clamped to the route.
+     * Binary search over the cumulative table: O(log n), allocation-free.
+     */
+    fun positionAt(distAlongM: Double, out: RoutePoint) {
+        val d = distAlongM.coerceIn(0.0, totalM)
+        var lo = 0
+        var hi = n - 2
+        while (lo < hi) {
+            val mid = (lo + hi + 1) ushr 1
+            if (cum[mid] <= d) lo = mid else hi = mid - 1
+        }
+        val seg = lo
+        val segLen = cum[seg + 1] - cum[seg]
+        val t = if (segLen > 0.0) ((d - cum[seg]) / segLen).coerceIn(0.0, 1.0) else 0.0
+        out.lat = route.lats[seg] + (route.lats[seg + 1] - route.lats[seg]) * t
+        out.lon = route.lons[seg] + (route.lons[seg + 1] - route.lons[seg]) * t
+        out.bearing = bearing(route.lats[seg], route.lons[seg], route.lats[seg + 1], route.lons[seg + 1])
+    }
+
+    /** Metres from [distAlongM] to the current next maneuver (as chosen by the last [update]). */
+    fun distanceToNextAt(distAlongM: Double): Double {
+        if (arrived) return 0.0
+        val next = maneuvers.getOrNull(nextIdx) ?: return 0.0
+        return (cum[next.pointIndex] - distAlongM).coerceAtLeast(0.0)
+    }
+
     /** True after [OFF_ROUTE_FIXES] consecutive fixes farther than [OFF_ROUTE_M] from the line. */
     val isOffRoute: Boolean get() = offCount >= OFF_ROUTE_FIXES
 

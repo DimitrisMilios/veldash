@@ -105,7 +105,14 @@ adb shell am start --user 10 -n com.veldash/.MainActivity
 ```
 
 The app scans its internal `files/maps` and `files/brouter/segments` as well as the external
-folders, so this works without root. To replay a drive, `tools/route-to-fixes.js` turns an OSRM
+folders, so this works without root.
+
+Android Automotive blocks non-optimised activities once the vehicle "moves", and the emulator
+derives vehicle speed from GPS replays. The manifest declares the activity distraction-optimised
+and the app as a navigation app (`res/xml/automotive_app_desc.xml`), which is what real AAOS
+builds require. The Google-built emulator image ignores these for sideloaded apps, so if the
+"You can't use this feature while driving" screen appears, reboot the emulator (state resets
+to parked) and keep replays short. Aftermarket Android head units have no such restriction. To replay a drive, `tools/route-to-fixes.js` turns an OSRM
 response into one fix per second and `tools/emu-drive.js` replays them over a single emulator console connection (per-call `adb emu` sessions get refused after a few dozen).
 
 ## Map labels (glyphs)
