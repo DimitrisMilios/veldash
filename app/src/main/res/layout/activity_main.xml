@@ -12,9 +12,18 @@
 
     <!-- Batmobile as a screen overlay while the camera follows: the camera's target point is a
          fixed screen position, so drawing the car here is jitter-free (a map-layer marker lags
-         the camera by a frame). Bitmap and position set in code; hidden when the driver pans. -->
+         the camera by a frame). One view per render (overhead 2D, rear chase 3D) so a view
+         switch can cross-fade them. Bitmaps and position set in code; hidden when panned. -->
     <ImageView
-        android:id="@+id/img_car"
+        android:id="@+id/img_car_2d"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/img_car_3d"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
@@ -151,15 +160,16 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- ===== Bottom-left: search pill when idle, trip card while routing/navigating ===== -->
+    <!-- ===== Top-left search bar (idle). While a route is up the next-turn card takes this spot. ===== -->
     <Button
         android:id="@+id/btn_search"
         style="@style/Widget.Veldash.Button"
-        android:layout_width="@dimen/btn_search_width"
+        android:layout_width="@dimen/search_width"
         android:layout_height="@dimen/touch_target"
-        android:layout_gravity="bottom|start"
+        android:layout_gravity="top|start"
         android:layout_marginStart="@dimen/gap_large"
-        android:layout_marginBottom="@dimen/bottom_margin"
+        android:layout_marginTop="@dimen/gap_large"
+        android:layout_marginEnd="@dimen/hud_speed_reserve"
         android:background="@drawable/bg_pill"
         android:drawableStart="@drawable/ic_search"
         android:drawablePadding="@dimen/gap_medium"
@@ -167,8 +177,9 @@
         android:paddingStart="@dimen/gap_xl"
         android:paddingEnd="@dimen/gap_xl"
         android:text="@string/where_to"
-        android:textColor="@color/bat_text" />
+        android:textColor="@color/bat_text_dim" />
 
+    <!-- ===== Bottom-left trip card (routing / navigating) ===== -->
     <LinearLayout
         android:id="@+id/card_trip"
         android:layout_width="wrap_content"
@@ -289,12 +300,27 @@
         android:textColor="@color/bat_text_dim"
         android:textSize="10sp" />
 
-    <!-- ===== Search panel: GONE until opened, covers everything while open ===== -->
-    <LinearLayout
-        android:id="@+id/panel_search"
+    <!-- ===== Search dropdown (Google Maps style): GONE until opened =====
+         A scrim dims the map and closes the dropdown on tap; the card sits where the search
+         bar was and grows down: field, then Home / Work / saved / recent rows or results. -->
+    <View
+        android:id="@+id/scrim_search"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/bat_black"
+        android:background="@color/bat_scrim"
+        android:clickable="true"
+        android:contentDescription="@string/close"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/panel_search"
+        android:layout_width="@dimen/search_panel_width"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="@dimen/gap_large"
+        android:layout_marginTop="@dimen/gap_large"
+        android:layout_marginBottom="@dimen/gap_large"
+        android:background="@drawable/bg_search_card"
         android:clickable="true"
         android:focusable="true"
         android:orientation="vertical"
@@ -303,15 +329,16 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="@dimen/touch_target"
-            android:layout_margin="@dimen/gap_large"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/gap"
+            android:paddingEnd="@dimen/gap">
 
             <ImageButton
                 android:id="@+id/btn_search_close"
-                android:layout_width="@dimen/touch_target"
-                android:layout_height="@dimen/touch_target"
-                android:background="@drawable/bg_fab"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
                 android:contentDescription="@string/close"
                 android:padding="@dimen/gap_large"
                 android:scaleType="fitCenter"
@@ -321,44 +348,52 @@
                 android:id="@+id/edit_search"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginStart="@dimen/gap_medium"
+                android:layout_marginStart="@dimen/gap"
                 android:layout_weight="1"
-                android:background="@drawable/bg_field"
-                android:drawableStart="@drawable/ic_search"
-                android:drawablePadding="@dimen/gap_medium"
+                android:background="@null"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch|flagNoExtractUi"
                 android:importantForAutofill="no"
                 android:inputType="text"
-                android:paddingStart="@dimen/gap_xl"
-                android:paddingEnd="@dimen/gap_xl"
                 android:singleLine="true"
                 android:textColor="@color/bat_text"
                 android:textColorHint="@color/bat_text_dim"
                 android:textCursorDrawable="@null"
                 android:textSize="@dimen/text_body" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/btn_search_go"
-                style="@style/Widget.Veldash.Button.Primary"
-                android:layout_width="@dimen/btn_go_width"
-                android:layout_height="match_parent"
-                android:layout_marginStart="@dimen/gap_medium"
-                android:text="@string/search" />
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/search"
+                android:padding="@dimen/gap_large"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_search" />
         </LinearLayout>
 
-        <ListView
-            android:id="@+id/list_places"
+        <View
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:paddingStart="@dimen/gap_large"
-            android:paddingEnd="@dimen/gap_large"
-            android:cacheColorHint="@color/bat_black"
-            android:clipToPadding="false"
-            android:divider="@color/bat_surface_high"
-            android:dividerHeight="1dp"
-            android:listSelector="@drawable/bg_row"
-            android:scrollbars="none" />
+            android:layout_height="1dp"
+            android:background="@color/bat_outline" />
+
+        <!-- A dozen rows at most: a plain LinearLayout (rows recycled by index in code) wraps its
+             content, which a ListView cannot; the ScrollView only scrolls when it hits the bottom. -->
+        <ScrollView
+            android:id="@+id/scroll_places"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/list_places"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="@dimen/gap"
+                android:paddingBottom="@dimen/gap" />
+        </ScrollView>
     </LinearLayout>
 
 </FrameLayout>

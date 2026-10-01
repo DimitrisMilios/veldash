@@ -21,8 +21,11 @@ object MapSetup {
      */
     private const val PREFETCH_ZOOM_DELTA = 0
 
-    /** Chase-camera pitch. Beyond ~55 the horizon pulls in many far tiles per frame. */
-    const val MAX_PITCH = 50.0
+    /**
+     * Chase-camera pitch. Beyond ~55 the horizon pulls in many far tiles per frame; the close
+     * z18 chase zoom keeps the visible area small enough that 55 stays cheap.
+     */
+    const val MAX_PITCH = 55.0
 
     /** Options for the programmatic MapView constructor. */
     fun options(context: Context): MapLibreMapOptions =

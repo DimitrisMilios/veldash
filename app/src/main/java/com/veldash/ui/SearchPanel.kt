@@ -3,58 +3,74 @@ package com.veldash.ui
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
+import android.graphics.Bitmap
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.BaseAdapter
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import com.veldash.R
 import com.veldash.databinding.ActivityMainBinding
 import com.veldash.map.BatArt
 import com.veldash.routing.Connectivity
-import com.veldash.search.Favorites
 import com.veldash.search.Geocoder
 import com.veldash.search.Place
+import com.veldash.search.PlaceStore
 import com.veldash.util.Bg
+import com.veldash.util.Prefs
 import org.maplibre.android.geometry.LatLng
 
 /**
- * Full-screen destination search over the map. Hidden (GONE) until opened, so it costs nothing
- * while driving. One EditText, two buttons, one ListView with a BaseAdapter that recycles a
- * single TextView per row.
+ * Google Maps style search dropdown. The top-left search bar opens a card in the same spot:
+ * the field on top, then Home and Work shortcuts, saved places and recent destinations, which
+ * filter locally as you type. Go (or the keyboard's search key) adds online results below.
  *
- * Row order: [save current destination] [favorites matching query] [online results].
+ * Tapping Home or Work while unset (or its Edit) switches the card into "pick" mode: the next
+ * place chosen is stored as that shortcut instead of being driven to.
+ *
+ * Hidden (GONE) until opened, so it costs nothing while driving. Rows are a plain LinearLayout
+ * of recycled row views: at most a dozen, so no adapter machinery.
  */
 class SearchPanel(
     private val activity: Activity,
     private val b: ActivityMainBinding,
-    private val favorites: Favorites,
+    private val prefs: Prefs,
+    private val favorites: PlaceStore,
+    private val recents: PlaceStore,
     private val onPick: (Place) -> Unit,
     private val currentDestination: () -> LatLng?,
     private val currentPosition: () -> LatLng?,
 ) {
 
-    private class Row(val place: Place?, val favorite: Boolean, val label: String?)
+    private enum class Kind { HOME, WORK, SAVE_DEST, HERE, FAVORITE, RECENT, RESULT, STATUS, MORE }
+
+    private class Row(val kind: Kind, val place: Place?, val title: String, val subtitle: String = "")
+
+    private class Holder(val icon: ImageView, val title: TextView, val subtitle: TextView, val action: TextView)
 
     private val rows = ArrayList<Row>()
-    private val adapter = PlaceAdapter()
+    private val inflater = LayoutInflater.from(activity)
     private var searchSeq = 0
+
+    /** Home or Work while picking a place for that shortcut, else null. */
+    private var pickingFor: Kind? = null
+    private var recentsExpanded = false
+
+    private val logo: Bitmap by lazy { BatArt.logoIcon(activity) }
+    private val iconPad = activity.resources.getDimensionPixelSize(R.dimen.row_icon_padding)
+    private val logoPad = activity.resources.getDimensionPixelSize(R.dimen.row_logo_padding)
+    private val colorText = color(R.color.bat_text)
+    private val colorDim = color(R.color.bat_text_dim)
+    private val colorYellow = color(R.color.bat_yellow)
 
     val isOpen: Boolean get() = b.panelSearch.visibility == View.VISIBLE
 
     init {
-        b.listPlaces.adapter = adapter
-        b.listPlaces.setOnItemClickListener { _, _, pos, _ -> onRowClick(rows[pos]) }
-        b.listPlaces.setOnItemLongClickListener { _, _, pos, _ -> onRowLongClick(rows[pos]); true }
         b.editSearch.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 search(b.editSearch.text.toString())
@@ -63,30 +79,53 @@ class SearchPanel(
                 false
             }
         }
+        // Local rows filter as you type; the network is only asked on an explicit search.
+        b.editSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                if (!isOpen) return
+                searchSeq++ // an in-flight online search no longer matches the text
+                showLocal(s?.toString() ?: "")
+            }
+        })
         b.btnSearchGo.setOnClickListener { search(b.editSearch.text.toString()) }
-        b.btnSearchClose.setOnClickListener { close() }
+        b.btnSearchClose.setOnClickListener { back() }
+        b.scrimSearch.setOnClickListener { close() }
     }
 
+    /**
+     * Opens the dropdown. The keyboard is not raised: in a car the saved and recent rows are the
+     * common case, and the IME would cover them. Tapping the field brings it up.
+     */
     fun open(initialQuery: String? = null) {
+        fitWidth()
+        pickingFor = null
+        recentsExpanded = false
+        b.editSearch.setHint(R.string.search_hint)
+        b.scrimSearch.visibility = View.VISIBLE
         b.panelSearch.visibility = View.VISIBLE
-        if (initialQuery != null) {
-            b.editSearch.setText(initialQuery)
-            search(initialQuery)
-        } else {
-            showLocal("")
-        }
-        b.editSearch.requestFocus()
-        imm().showSoftInput(b.editSearch, InputMethodManager.SHOW_IMPLICIT)
+        b.editSearch.setText(initialQuery ?: "") // the watcher fills the rows
+        b.editSearch.setSelection(b.editSearch.length())
+        b.scrollPlaces.scrollTo(0, 0)
+        if (initialQuery != null) search(initialQuery)
     }
 
     fun close() {
         imm().hideSoftInputFromWindow(b.editSearch.windowToken, 0)
         b.editSearch.clearFocus()
         b.panelSearch.visibility = View.GONE
+        b.scrimSearch.visibility = View.GONE
+        pickingFor = null
         searchSeq++ // drop any in-flight result
     }
 
-    /** Called when favorites finish loading, or after an add/remove. */
+    /** Back: leave pick mode first, then close. */
+    fun back() {
+        if (pickingFor != null) endPicking() else close()
+    }
+
+    /** Called when favorites or recents finish loading, or after an add/remove. */
     fun refresh() {
         if (isOpen) showLocal(b.editSearch.text.toString())
     }
@@ -100,22 +139,22 @@ class SearchPanel(
         // Coordinates: instant, offline.
         Geocoder.parseCoordinates(query)?.let { p ->
             rows.clear()
-            rows += Row(p, favorites.isFavorite(p.lat, p.lon), null)
-            adapter.notifyDataSetChanged()
+            rows += Row(Kind.RESULT, p, p.name, p.detail)
+            render()
             return
         }
 
         showLocal(query)
         if (query.isEmpty()) return
         if (!Connectivity.isOnline) {
-            rows += Row(null, false, activity.getString(R.string.search_offline))
-            adapter.notifyDataSetChanged()
+            rows += Row(Kind.STATUS, null, activity.getString(R.string.search_offline))
+            render()
             return
         }
 
         val seq = ++searchSeq
-        rows += Row(null, false, activity.getString(R.string.searching))
-        adapter.notifyDataSetChanged()
+        rows += Row(Kind.STATUS, null, activity.getString(R.string.searching))
+        render()
 
         val near = currentPosition()
         Bg.compute({
@@ -126,59 +165,241 @@ class SearchPanel(
             }
         }) { result ->
             if (seq != searchSeq || !isOpen) return@compute
-            rows.removeAll { it.place == null && it.label != null }
+            rows.removeAll { it.kind == Kind.STATUS }
             if (result == null) {
-                rows += Row(null, false, activity.getString(R.string.search_failed))
+                rows += Row(Kind.STATUS, null, activity.getString(R.string.search_failed))
             } else if (result.isEmpty() && rows.none { it.place != null }) {
-                rows += Row(null, false, activity.getString(R.string.no_results))
+                rows += Row(Kind.STATUS, null, activity.getString(R.string.no_results))
             } else {
                 for (p in result) {
-                    if (rows.none { it.place?.sameSpot(p.lat, p.lon) == true }) {
-                        rows += Row(p, favorites.isFavorite(p.lat, p.lon), null)
-                    }
+                    if (rows.none { it.place?.sameSpot(p.lat, p.lon) == true }) rows += Row(Kind.RESULT, p, p.name, p.detail)
                 }
             }
-            adapter.notifyDataSetChanged()
+            render()
         }
     }
 
-    /** Favorites (filtered) plus the save-destination row. No network. */
+    /** Shortcuts, saved and recent places matching [query]. No network. */
     private fun showLocal(query: String) {
         rows.clear()
-        val dest = currentDestination()
-        if (dest != null && !favorites.isFavorite(dest.latitude, dest.longitude)) {
-            rows += Row(null, false, activity.getString(R.string.save_destination))
+        val q = query.trim()
+        val picking = pickingFor
+
+        if (picking == null) {
+            shortcutRow(Kind.HOME, prefs.home, R.string.home, q)
+            shortcutRow(Kind.WORK, prefs.work, R.string.work, q)
+            val dest = currentDestination()
+            if (q.isEmpty() && dest != null && !favorites.contains(dest.latitude, dest.longitude)) {
+                rows += Row(Kind.SAVE_DEST, null, activity.getString(R.string.save_destination))
+            }
+        } else if (q.isEmpty()) {
+            val here = currentPosition()
+            if (here != null) {
+                rows += Row(Kind.HERE, null, activity.getString(R.string.use_current_location), coords(here.latitude, here.longitude))
+            }
         }
-        for (p in favorites.matching(query)) rows += Row(p, true, null)
-        adapter.notifyDataSetChanged()
+
+        for (p in favorites.matching(q)) rows += Row(Kind.FAVORITE, p, p.name, p.detail)
+
+        // A recent that is already a shortcut or a favorite is listed once, as that.
+        val home = prefs.home
+        val work = prefs.work
+        val recent = recents.matching(q).filter { r ->
+            !favorites.contains(r.lat, r.lon) && home?.sameSpot(r.lat, r.lon) != true && work?.sameSpot(r.lat, r.lon) != true
+        }
+        val cap = if (q.isEmpty() && !recentsExpanded) RECENTS_COLLAPSED else Int.MAX_VALUE
+        for (p in recent.take(cap)) rows += Row(Kind.RECENT, p, p.name, p.detail)
+        if (recent.size > cap) rows += Row(Kind.MORE, null, activity.getString(R.string.more_recents))
+
+        render()
     }
 
-    // ---- row actions ----
+    private fun shortcutRow(kind: Kind, p: Place?, labelRes: Int, q: String) {
+        val label = activity.getString(labelRes)
+        if (q.isNotEmpty()) {
+            // While typing, a shortcut shows only if set and matching (by its label or address).
+            if (p == null) return
+            if (!label.contains(q, true) && !p.name.contains(q, true) && !p.detail.contains(q, true)) return
+        }
+        rows += Row(kind, p, label, p?.let(::address) ?: activity.getString(R.string.tap_to_set))
+    }
+
+    // ---- rows ----
+
+    private fun render() {
+        val list = b.listPlaces
+        for (i in rows.indices) {
+            val v = list.getChildAt(i) ?: inflater.inflate(R.layout.item_place, list, false).also {
+                it.tag = Holder(
+                    it.findViewById(R.id.row_icon),
+                    it.findViewById(R.id.row_title),
+                    it.findViewById(R.id.row_subtitle),
+                    it.findViewById(R.id.row_action),
+                )
+                list.addView(it)
+            }
+            bind(v, rows[i])
+        }
+        if (list.childCount > rows.size) list.removeViews(rows.size, list.childCount - rows.size)
+    }
+
+    private fun bind(v: View, row: Row) {
+        val h = v.tag as Holder
+        val kind = row.kind
+
+        val iconRes = when (kind) {
+            Kind.HOME -> R.drawable.ic_home
+            Kind.WORK -> R.drawable.ic_work
+            Kind.SAVE_DEST, Kind.FAVORITE -> R.drawable.ic_star
+            Kind.HERE -> R.drawable.ic_my_location
+            Kind.RECENT -> R.drawable.ic_history
+            else -> 0
+        }
+        // The wide bat logo needs less inset than the square glyphs to read at badge size.
+        val pad = if (kind == Kind.RESULT) logoPad else iconPad
+        h.icon.setPadding(pad, pad, pad, pad)
+        when {
+            iconRes != 0 -> {
+                h.icon.setImageResource(iconRes)
+                h.icon.visibility = View.VISIBLE
+            }
+            kind == Kind.RESULT -> {
+                h.icon.setImageBitmap(logo)
+                h.icon.visibility = View.VISIBLE
+            }
+            else -> h.icon.visibility = View.GONE
+        }
+
+        h.title.text = row.title
+        h.title.setTextColor(
+            when (kind) {
+                Kind.STATUS -> colorDim
+                Kind.MORE, Kind.SAVE_DEST -> colorYellow
+                else -> colorText
+            },
+        )
+        h.title.gravity = if (kind == Kind.MORE) Gravity.CENTER else Gravity.START
+        h.subtitle.text = row.subtitle
+        h.subtitle.visibility = if (row.subtitle.isEmpty()) View.GONE else View.VISIBLE
+
+        val editable = (kind == Kind.HOME || kind == Kind.WORK) && row.place != null
+        h.action.visibility = if (editable) View.VISIBLE else View.GONE
+        h.action.setOnClickListener(if (editable) View.OnClickListener { startPicking(kind) } else null)
+
+        if (kind == Kind.STATUS) {
+            v.setOnClickListener(null)
+            v.setOnLongClickListener(null)
+            v.isClickable = false
+            v.isLongClickable = false
+        } else {
+            v.setOnClickListener { onRowClick(row) }
+            v.setOnLongClickListener { onRowLongClick(row) }
+        }
+    }
 
     private fun onRowClick(row: Row) {
         val p = row.place
-        if (p != null) {
-            close()
-            onPick(p)
-            return
-        }
-        if (row.label == activity.getString(R.string.save_destination)) {
-            val dest = currentDestination() ?: return
-            promptName(null) { name -> favorites.add(Place(name, "", dest.latitude, dest.longitude)); refresh() }
+        when (row.kind) {
+            Kind.HOME, Kind.WORK -> if (p != null) go(p) else startPicking(row.kind)
+            Kind.SAVE_DEST -> {
+                val dest = currentDestination() ?: return
+                promptName(null) { name -> favorites.add(Place(name, "", dest.latitude, dest.longitude)); refresh() }
+            }
+            Kind.HERE -> {
+                val here = currentPosition() ?: return
+                assign(Place(activity.getString(R.string.use_current_location), coords(here.latitude, here.longitude), here.latitude, here.longitude))
+            }
+            Kind.FAVORITE, Kind.RECENT, Kind.RESULT -> if (p != null) {
+                if (pickingFor != null) assign(p) else go(p)
+            }
+            Kind.MORE -> {
+                recentsExpanded = true
+                showLocal(b.editSearch.text.toString())
+            }
+            Kind.STATUS -> Unit
         }
     }
 
-    private fun onRowLongClick(row: Row) {
-        val p = row.place ?: return
-        if (row.favorite) {
-            AlertDialog.Builder(activity)
-                .setMessage(activity.getString(R.string.remove_favorite, p.name))
-                .setPositiveButton(R.string.remove) { _, _ -> favorites.remove(p); refresh() }
-                .setNegativeButton(R.string.cancel, null)
+    private fun onRowLongClick(row: Row): Boolean {
+        val p = row.place ?: return false
+        when (row.kind) {
+            Kind.HOME, Kind.WORK -> confirm(activity.getString(R.string.remove_shortcut, row.title)) {
+                if (row.kind == Kind.HOME) prefs.home = null else prefs.work = null
+                refresh()
+            }
+            Kind.FAVORITE -> confirm(activity.getString(R.string.remove_favorite, p.name)) { favorites.remove(p); refresh() }
+            Kind.RECENT -> AlertDialog.Builder(activity)
+                .setTitle(p.name)
+                .setItems(arrayOf(activity.getString(R.string.save_favorite), activity.getString(R.string.remove_recent))) { _, which ->
+                    if (which == 0) {
+                        promptName(p.name) { name -> favorites.add(Place(name, p.detail, p.lat, p.lon)); refresh() }
+                    } else {
+                        recents.remove(p)
+                        refresh()
+                    }
+                }
                 .show()
-        } else {
-            promptName(p.name) { name -> favorites.add(Place(name, p.detail, p.lat, p.lon)); refresh() }
+            Kind.RESULT -> promptName(p.name) { name -> favorites.add(Place(name, p.detail, p.lat, p.lon)); refresh() }
+            else -> return false
         }
+        return true
+    }
+
+    /** Drive there: remember it in the recent history, then hand it to the router. */
+    private fun go(p: Place) {
+        recents.add(p)
+        close()
+        onPick(p)
+    }
+
+    // ---- Home / Work pick mode ----
+
+    private fun startPicking(kind: Kind) {
+        pickingFor = kind
+        b.editSearch.setHint(if (kind == Kind.HOME) R.string.set_home_hint else R.string.set_work_hint)
+        b.editSearch.setText("")
+        b.scrollPlaces.scrollTo(0, 0)
+        b.editSearch.requestFocus()
+        imm().showSoftInput(b.editSearch, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun assign(p: Place) {
+        if (pickingFor == Kind.HOME) prefs.home = p else prefs.work = p
+        endPicking()
+    }
+
+    private fun endPicking() {
+        pickingFor = null
+        imm().hideSoftInputFromWindow(b.editSearch.windowToken, 0)
+        b.editSearch.setHint(R.string.search_hint)
+        b.editSearch.setText("")
+    }
+
+    // ---- helpers ----
+
+    /** Card width: the design width, or the screen minus margins on a narrow (portrait) unit. */
+    private fun fitWidth() {
+        val margin = activity.resources.getDimensionPixelSize(R.dimen.gap_large)
+        val want = activity.resources.getDimensionPixelSize(R.dimen.search_panel_width)
+        val avail = b.root.width - 2 * margin
+        val w = if (avail in 1 until want) avail else want
+        val lp = b.panelSearch.layoutParams
+        if (lp.width != w) {
+            lp.width = w
+            b.panelSearch.layoutParams = lp
+        }
+    }
+
+    private fun address(p: Place): String = if (p.detail.isEmpty()) p.name else "${p.name}, ${p.detail}"
+
+    private fun coords(lat: Double, lon: Double): String = activity.getString(R.string.coords, lat, lon)
+
+    private fun confirm(message: String, onYes: () -> Unit) {
+        AlertDialog.Builder(activity)
+            .setMessage(message)
+            .setPositiveButton(R.string.remove) { _, _ -> onYes() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun promptName(initial: String?, onName: (String) -> Unit) {
@@ -201,47 +422,11 @@ class SearchPanel(
     private fun imm(): InputMethodManager =
         activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
-    // ---- adapter ----
-
-    private inner class PlaceAdapter : BaseAdapter() {
-        private val inflater = LayoutInflater.from(activity)
-        private val dimColor = color(R.color.bat_text_dim)
-        private val starColor = color(R.color.bat_yellow)
-        // Row icons, one instance each (a drawable can back many TextViews while it is not mutated).
-        private val starIcon: Drawable = activity.getDrawable(R.drawable.ic_star)!!
-        private val placeIcon: Drawable = BitmapDrawable(activity.resources, BatArt.logoIcon(activity))
-
-        override fun getCount(): Int = rows.size
-        override fun getItem(position: Int): Any = rows[position]
-        override fun getItemId(position: Int): Long = position.toLong()
-        override fun isEnabled(position: Int): Boolean = rows[position].place != null || rows[position].label == activity.getString(R.string.save_destination)
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val tv = (convertView ?: inflater.inflate(R.layout.item_place, parent, false)) as TextView
-            val row = rows[position]
-            val p = row.place
-            if (p == null) {
-                val save = row.label == activity.getString(R.string.save_destination)
-                tv.text = row.label
-                tv.setTextColor(if (save) starColor else dimColor)
-                tv.setCompoundDrawablesRelativeWithIntrinsicBounds(if (save) starIcon else null, null, null, null)
-                return tv
-            }
-            tv.setCompoundDrawablesRelativeWithIntrinsicBounds(if (row.favorite) starIcon else placeIcon, null, null, null)
-            val sb = SpannableStringBuilder()
-            sb.append(p.name)
-            if (p.detail.isNotEmpty()) {
-                val start = sb.length
-                sb.append('\n').append(p.detail)
-                sb.setSpan(RelativeSizeSpan(0.7f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.setSpan(ForegroundColorSpan(dimColor), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-            tv.text = sb
-            tv.setTextColor(color(R.color.bat_text))
-            return tv
-        }
-    }
-
     @Suppress("DEPRECATION")
     private fun color(id: Int): Int = activity.resources.getColor(id)
+
+    private companion object {
+        /** Recent rows shown before "More from recent history". */
+        const val RECENTS_COLLAPSED = 4
+    }
 }

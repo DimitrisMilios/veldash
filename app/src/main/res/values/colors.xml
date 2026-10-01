@@ -10,6 +10,8 @@
     <color name="bat_text">#FFFFFF</color>
     <color name="bat_text_dim">#9E9E9E</color>
     <color name="bat_danger">#FF3B30</color>
+    <!-- Dims the map behind the open search dropdown. -->
+    <color name="bat_scrim">#99000000</color>
 
     <!-- Map overlay colors (route line, casing). -->
     <color name="route_line">#FFE600</color>

@@ -44,10 +44,17 @@ BRouter repository, `misc/profiles2/`). Without those two assets offline routing
 
 ## Search and favorites
 
-"Where to?" opens the search panel. Type an address or place name and press Go, or type
-coordinates as `lat, lon` (works offline). Tap a result to route to it. Long-press a result to
-save it as a favorite, or long-press a favorite to remove it. When a destination is set, the
-first row saves it as a favorite.
+The "Where to?" bar (top left) opens a Google Maps style dropdown: Home and Work shortcuts,
+saved places and recent destinations, filtered as you type. Press the search icon (or the
+keyboard's search key) for online results, or type coordinates as `lat, lon` (works offline).
+Tap any row to route to it.
+
+- **Home / Work:** tap one while unset (or its Edit) to pick it: search, or use the current
+  location. Long-press to remove it.
+- **Saved places:** long-press a result to save it; long-press a saved place to remove it.
+  When a destination is set, a row saves it.
+- **Recent history:** every destination you pick. The first four show, "More from recent
+  history" shows the rest; long-press one to save it or remove it from history.
 
 While a route is active the trip card replaces "Where to?" at the bottom left: time left,
 distance and arrival time. Its ✕ ends the route (so does Back).
@@ -60,7 +67,8 @@ trimmed, downscaled copies in `app/src/main/res/drawable-nodpi/` (`car_3d.png` i
   is queried only on an explicit search, never per keystroke, per its usage policy.
 - **Offline:** favorites and coordinate input.
 
-Favorites live in `files/favorites.json` inside the app's private storage.
+Saved places and recents live in `files/favorites.json` and `files/recents.json` inside the
+app's private storage; Home and Work in its preferences.
 
 Other apps can hand over a destination with a `geo:` intent, for example
 `geo:37.98,23.72`, `geo:0,0?q=37.98,23.72(Label)` or `geo:0,0?q=Syntagma+Square`.

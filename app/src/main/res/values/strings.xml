@@ -38,7 +38,19 @@
     <string name="arrived">Arrived</string>
 
     <string name="where_to">Where to?</string>
-    <string name="search_hint">Address, place, or lat, lon</string>
+    <string name="search_hint">Search places or lat, lon</string>
+    <string name="home">Home</string>
+    <string name="work">Work</string>
+    <string name="edit">Edit</string>
+    <string name="tap_to_set">Tap to set</string>
+    <string name="set_home_hint">Search for your home address</string>
+    <string name="set_work_hint">Search for your work address</string>
+    <string name="use_current_location">Use current location</string>
+    <string name="more_recents">More from recent history</string>
+    <string name="save_favorite">Save as favorite</string>
+    <string name="remove_recent">Remove from history</string>
+    <string name="remove_shortcut">Remove %1$s?</string>
+    <string name="coords">%1$.5f, %2$.5f</string>
     <string name="search">Go</string>
     <string name="close">Close search</string>
     <string name="searching">Searching…</string>

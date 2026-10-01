@@ -25,7 +25,6 @@
 
     <!-- Bottom row. -->
     <dimen name="bottom_margin">24dp</dimen>
-    <dimen name="btn_search_width">320dp</dimen>
     <dimen name="card_trip_min_width">320dp</dimen>
     <!-- Trip card end margin that keeps it clear of the action column: 80 + 16 + 16. -->
     <dimen name="actions_reserve">112dp</dimen>
@@ -33,5 +32,14 @@
     <dimen name="btn_go_width">120dp</dimen>
     <dimen name="btn_primary_min_width">200dp</dimen>
     <dimen name="empty_logo_width">180dp</dimen>
-    <dimen name="row_height">76dp</dimen>
+    <!-- Search bar and dropdown (top-left). Width is clamped to the screen in code. -->
+    <dimen name="search_width">400dp</dimen>
+    <dimen name="search_panel_width">460dp</dimen>
+    <dimen name="icon_button">56dp</dimen>
+    <dimen name="row_height">72dp</dimen>
+    <dimen name="row_icon">44dp</dimen>
+    <dimen name="row_icon_padding">10dp</dimen>
+    <dimen name="row_logo_padding">4dp</dimen>
+    <dimen name="text_row_title">20sp</dimen>
+    <dimen name="text_row_subtitle">16sp</dimen>
 </resources>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Search row: flat full-width highlight while pressed, nothing otherwise. -->
+<!-- Borderless round icon button: invisible until pressed. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
-        <shape android:shape="rectangle">
+        <shape android:shape="oval">
             <solid android:color="@color/bat_surface_high" />
         </shape>
     </item>

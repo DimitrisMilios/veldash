@@ -15,6 +15,7 @@ import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.ImageView
 import com.veldash.databinding.ActivityMainBinding
 import com.veldash.location.Fix
 import com.veldash.location.LocationBus
@@ -31,9 +32,9 @@ import com.veldash.nav.SmoothMotion
 import com.veldash.routing.OfflineRouter
 import com.veldash.routing.Route
 import com.veldash.routing.Router
-import com.veldash.search.Favorites
 import com.veldash.search.GeoUri
 import com.veldash.search.Place
+import com.veldash.search.PlaceStore
 import com.veldash.ui.Hud
 import com.veldash.ui.SearchPanel
 import com.veldash.util.Bg
@@ -61,7 +62,8 @@ class MainActivity : Activity(), LocationBus.Listener {
     private lateinit var mapView: MapView
     private lateinit var prefs: Prefs
     private lateinit var hud: Hud
-    private lateinit var favorites: Favorites
+    private lateinit var favorites: PlaceStore
+    private lateinit var recents: PlaceStore
     private lateinit var searchPanel: SearchPanel
 
     /** Destination requested before a style was loaded (geo: intent at cold start). */
@@ -87,25 +89,39 @@ class MainActivity : Activity(), LocationBus.Listener {
     private var lastApplyNs = 0L
     private var lastHudNs = 0L
 
-    /** While a deliberate camera ease (mode switch, recenter) plays, per-frame camera moves pause. */
+    /** While a deliberate camera ease (recenter) plays, per-frame camera moves pause. */
     private var cameraHoldUntilMs = 0L
+
+    // ---- 2D <-> 3D switch: tilt, top padding, zoom and the car art all blend on one curve ----
+    /** 0 = flat 2D, 1 = 3D chase. Equals [blendTo] except while a switch plays. */
+    private var viewBlend = 1f
+    private var blendFrom = 1f
+    private var blendTo = 1f
+    /** Eased switch progress 0..1 (drives the zoom lerp). */
+    private var switchEase = 1f
+    private var switchStartMs = 0L
+    private var zoomFrom = 0.0
+    private var zoomTo = 0.0
+    private val switching: Boolean get() = blendFrom != blendTo
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!animating) return
             if (lastFrameNs != 0L) motion.step((frameTimeNanos - lastFrameNs) / 1e9)
             lastFrameNs = frameTimeNanos
-            if (frameTimeNanos - lastApplyNs >= APPLY_INTERVAL_NS) {
+            // A view switch renders every frame so the tilt is silky; normal tracking is 30 Hz.
+            val blendChanged = stepViewSwitch()
+            if (blendChanged || frameTimeNanos - lastApplyNs >= APPLY_INTERVAL_NS) {
                 lastApplyNs = frameTimeNanos
-                applyMotion()
+                applyMotion(blendChanged)
             }
             if (frameTimeNanos - lastHudNs >= HUD_INTERVAL_NS) {
                 lastHudNs = frameTimeNanos
                 val nav = navigator
                 if (nav != null && motion.onRoute) hud.updateTurnDistance(nav.distanceToNextAt(motion.distAlongM))
             }
-            // Keep stepping while fixes keep coming; go idle (zero CPU) when GPS goes quiet.
-            if (LocationBus.isFresh(IDLE_AFTER_MS)) choreographer.postFrameCallback(this) else animating = false
+            // Keep stepping while fixes keep coming (or a switch plays); go idle (zero CPU) otherwise.
+            if (switching || LocationBus.isFresh(IDLE_AFTER_MS)) choreographer.postFrameCallback(this) else animating = false
         }
     }
 
@@ -132,16 +148,20 @@ class MainActivity : Activity(), LocationBus.Listener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         hud = Hud(this, binding)
-        favorites = Favorites(this)
+        favorites = PlaceStore(this, "favorites.json")
+        recents = PlaceStore(this, "recents.json", MAX_RECENTS)
         searchPanel = SearchPanel(
             activity = this,
             b = binding,
+            prefs = prefs,
             favorites = favorites,
+            recents = recents,
             onPick = { goTo(it) },
             currentDestination = { destination },
             currentPosition = { LocationBus.last?.let { LatLng(it.lat, it.lon) } ?: map?.cameraPosition?.target },
         )
         favorites.load { searchPanel.refresh() }
+        recents.load { searchPanel.refresh() }
         // Create the data folders up front so they exist for users copying files in over USB/MTP.
         Bg.execute {
             MapRepository.mapsDir(this)
@@ -183,17 +203,21 @@ class MainActivity : Activity(), LocationBus.Listener {
         binding.btnEmptyLoadMap.setOnClickListener { pickMap() }
         binding.btnEndRoute.setOnClickListener { clearRoute() }
         binding.btnRecenter.setImageBitmap(BatArt.car(this, view3d = false))
+        binding.imgCar2d.setImageBitmap(BatArt.car(this, view3d = false))
+        binding.imgCar3d.setImageBitmap(BatArt.car(this, view3d = true))
         binding.btnRecenter.setOnClickListener { setFollow(true) }
         binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
 
         view3d = prefs.view3d
+        viewBlend = if (view3d) 1f else 0f
+        blendFrom = viewBlend
+        blendTo = viewBlend
         updateViewModeButton()
         binding.btnViewMode.setOnClickListener {
             view3d = !view3d
             prefs.view3d = view3d
             updateViewModeButton()
-            // Re-aim immediately from the last known position; otherwise the next fix applies it.
-            if (follow) LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+            startViewSwitch()
         }
 
         handleGeoIntent(intent)
@@ -243,42 +267,118 @@ class MainActivity : Activity(), LocationBus.Listener {
      * Following: the camera is moved so the car is at a fixed screen point, and the car is drawn
      * as the screen overlay at exactly that point (heading-up, so it always points straight up).
      * A map-layer marker would lag the camera by a frame and visibly jitter.
-     * Not following (or during a mode-switch ease): the map-layer marker is used instead.
+     * Not following (or during a recenter ease): the map-layer marker is used instead.
+     * [blendChanged]: a 2D/3D switch moved this frame, so tilt the camera even without a fix.
      */
-    private fun applyMotion() {
-        if (!motion.hasPosition) return
+    private fun applyMotion(blendChanged: Boolean = false) {
+        if (!motion.hasPosition) {
+            if (blendChanged) tiltInPlace()
+            return
+        }
         val useOverlay = follow && SystemClock.uptimeMillis() >= cameraHoldUntilMs
         if (useOverlay) {
             followCamera(motion.lat, motion.lon, motion.bearing, animate = false)
             marker.setShown(false)
             showCarOverlay(true)
         } else {
+            marker.setArt(BatArt.car(this, viewBlend >= 0.5f))
             marker.update(motion.lat, motion.lon, motion.bearing)
             marker.setShown(true)
             showCarOverlay(false)
+            if (blendChanged) tiltInPlace()
         }
     }
 
-    private var carOverlayShown = false
-    private var carOverlayY = -1f
-    private var carOverlayH = 0
+    /**
+     * Start the 2D <-> 3D blend. Tilt, padding (car height on screen) and zoom glide together on
+     * one ease-in-out curve driven by the frame loop, while the overhead and chase renders of the
+     * car cross-fade and foreshorten. A tap mid-switch reverses smoothly from where it is.
+     */
+    private fun startViewSwitch() {
+        blendFrom = viewBlend
+        blendTo = if (view3d) 1f else 0f
+        switchEase = 0f
+        switchStartMs = SystemClock.uptimeMillis()
+        val lat = if (motion.hasPosition) motion.lat else map?.cameraPosition?.target?.latitude ?: 0.0
+        zoomTo = navZoom(lat)
+        zoomFrom = map?.cameraPosition?.zoom ?: zoomTo
+        cameraHoldUntilMs = 0L // the switch owns the camera now
+        startAnimating()
+    }
 
+    /** Advance the switch. Returns true while it moved the blend this frame (including the last). */
+    private fun stepViewSwitch(): Boolean {
+        if (!switching) return false
+        // A reversal mid-way only travels the remaining distance, so it takes proportionally less time.
+        val span = VIEW_SWITCH_MS * Math.abs(blendTo - blendFrom).coerceAtLeast(0.35f)
+        val p = ((SystemClock.uptimeMillis() - switchStartMs) / span).coerceIn(0f, 1f)
+        switchEase = easeInOutCubic(p)
+        viewBlend = blendFrom + (blendTo - blendFrom) * switchEase
+        if (p >= 1f) {
+            viewBlend = blendTo
+            blendFrom = blendTo
+        }
+        return true
+    }
+
+    private fun easeInOutCubic(t: Float): Float =
+        if (t < 0.5f) 4f * t * t * t else 1f - Math.pow(-2.0 * t + 2.0, 3.0).toFloat() / 2f
+
+    /** Panned, or no fix yet: tilt around the current camera target only. */
+    private fun tiltInPlace() {
+        val m = map ?: return
+        if (m.style?.isFullyLoaded != true) return
+        val cam = CameraPosition.Builder(m.cameraPosition).tilt(MapSetup.MAX_PITCH * viewBlend).build()
+        m.moveCamera(CameraUpdateFactory.newCameraPosition(cam))
+    }
+
+    /**
+     * Follow zoom from a ground distance, not a fixed level, the way Google picks it: the map's
+     * short side spans [NAV_SPAN_2D_M] of street in 2D, and 3D sits [NAV_3D_EXTRA_ZOOM] closer
+     * (the tilt already shows the road far ahead). A fixed zoom looks far out on a large
+     * low-density head unit: the 1080x600 @ 0.75 emulator is 1440x800 dp, 4x a phone's area.
+     */
+    private fun navZoom(lat: Double): Double {
+        val dm = resources.displayMetrics
+        val shortPx = minOf(mapView.width, mapView.height).takeIf { it > 0 } ?: minOf(dm.widthPixels, dm.heightPixels)
+        val shortDp = shortPx / dm.density
+        // MapLibre: 512 dp per world width at zoom 0, so metres per dp = C * cos(lat) / (512 * 2^z).
+        val z2d = Math.log(EARTH_CIRCUMFERENCE_M * Math.cos(Math.toRadians(lat)) * shortDp / (512.0 * NAV_SPAN_2D_M)) / Math.log(2.0)
+        val z = if (view3d) z2d + NAV_3D_EXTRA_ZOOM else z2d
+        return z.coerceIn(MIN_NAV_ZOOM, MAX_NAV_ZOOM)
+    }
+
+    /** Top padding (fraction of height) for the current blend: the car sinks as the view tilts. */
+    private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend
+
+    /**
+     * Both car renders sit centred on the camera target. Mid-switch they cross-fade, and each is
+     * squashed vertically toward the other one's proportions, so the car reads as tilting rather
+     * than being swapped.
+     */
     private fun showCarOverlay(show: Boolean) {
+        val b = viewBlend
         if (show) {
             // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
-            val h = mapView.height.toFloat()
-            val pad = if (view3d) PAD_TOP_3D else PAD_TOP_2D
-            // Bitmap height, not view.height: the view is GONE (unmeasured) the first time through.
-            val y = h * (1f + pad.toFloat()) / 2f - carOverlayH / 2f
-            if (y != carOverlayY) {
-                carOverlayY = y
-                binding.imgCar.y = y
-            }
+            val cy = mapView.height * (1f + padTop().toFloat()) / 2f
+            placeCar(binding.imgCar2d, cy, 1f - b, 1f - 0.35f * b)
+            placeCar(binding.imgCar3d, cy, b, 0.8f + 0.2f * b)
+        } else {
+            placeCar(binding.imgCar2d, 0f, 0f, 1f)
+            placeCar(binding.imgCar3d, 0f, 0f, 1f)
         }
-        if (show != carOverlayShown) {
-            carOverlayShown = show
-            binding.imgCar.visibility = if (show) View.VISIBLE else View.GONE
-        }
+    }
+
+    private fun placeCar(v: ImageView, centerY: Float, alpha: Float, scaleY: Float) {
+        val vis = if (alpha > 0.01f) View.VISIBLE else View.GONE
+        if (v.visibility != vis) v.visibility = vis
+        if (vis == View.GONE) return
+        // Bitmap height, not view.height: the view is GONE (unmeasured) the first time through.
+        val h = (v.drawable?.intrinsicHeight ?: 0).toFloat()
+        v.y = centerY - h / 2f
+        v.pivotY = h / 2f
+        v.alpha = alpha
+        v.scaleY = scaleY
     }
 
     override fun onResume() {
@@ -348,7 +448,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         when {
-            searchPanel.isOpen -> searchPanel.close()
+            searchPanel.isOpen -> searchPanel.back()
             destination != null -> clearRoute()
             else -> super.onBackPressed()
         }
@@ -421,44 +521,42 @@ class MainActivity : Activity(), LocationBus.Listener {
         applyMotion()
     }
 
-    /** Toggle label plus the batmobile art: rear chase render in 3D, overhead render in 2D. */
     private fun updateViewModeButton() {
         binding.btnViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
-        val art = BatArt.car(this, view3d)
-        binding.imgCar.setImageBitmap(art)
-        carOverlayH = art.height
-        carOverlayY = -1f // overlay target point moves with the padding and the car size
-        marker.setArt(art)
     }
 
     /**
-     * Heading-up follow camera. One linear ease per fix, lasting exactly the fix interval, so
-     * consecutive eases chain into continuous motion instead of a stop-start stutter.
+     * Heading-up follow camera, placed once per frame by the frame loop.
      *
-     * 3D: pitched [MapSetup.MAX_PITCH], car in the lower third (top padding pushes the target
-     * down the screen), zoom [NAV_ZOOM_3D]. 2D: flat, car slightly below centre, [NAV_ZOOM_2D].
-     * The driver's pinch zoom is kept while it stays within a sane navigation range, unless
-     * [forceZoom] (mode switch, recenter) resets it.
+     * Tilt, top padding and zoom come from [viewBlend]: 3D is pitched [MapSetup.MAX_PITCH] with
+     * the car low on screen (Google-style chase view); 2D is flat with the car a little below
+     * centre. Zoom comes from [navZoom]. During a switch the zoom glides between the two.
+     * Otherwise the driver's pinch zoom is kept while it stays within a sane navigation range,
+     * unless [forceZoom] (recenter, map load) resets it.
      */
     private fun followCamera(lat: Double, lon: Double, bearing: Float, animate: Boolean, forceZoom: Boolean = false) {
         val m = map ?: return
         if (m.style?.isFullyLoaded != true) return
         val h = mapView.height.toDouble()
         val current = m.cameraPosition.zoom
-        val builder = CameraPosition.Builder()
+        val nav = navZoom(lat)
+        val zoom = when {
+            switching -> zoomFrom + (zoomTo - zoomFrom) * switchEase
+            // A driver pinch is kept while it stays near street level; recenter snaps back.
+            !forceZoom && current in (nav - FOLLOW_ZOOM_OUT)..(nav + FOLLOW_ZOOM_IN) -> current
+            else -> nav
+        }
+        val cam = CameraPosition.Builder()
             .target(LatLng(lat, lon))
             .bearing(bearing.toDouble())
-        if (view3d) {
-            val zoom = if (!forceZoom && current in MIN_FOLLOW_ZOOM..MAX_FOLLOW_ZOOM) current else NAV_ZOOM_3D
-            builder.tilt(MapSetup.MAX_PITCH).zoom(zoom).padding(0.0, h * PAD_TOP_3D, 0.0, 0.0)
-        } else {
-            val zoom = if (!forceZoom && current in MIN_FOLLOW_ZOOM..MAX_FOLLOW_ZOOM) current else NAV_ZOOM_2D
-            builder.tilt(0.0).zoom(zoom).padding(0.0, h * PAD_TOP_2D, 0.0, 0.0)
-        }
-        val update = CameraUpdateFactory.newCameraPosition(builder.build())
+            .tilt(MapSetup.MAX_PITCH * viewBlend)
+            .zoom(zoom)
+            .padding(0.0, h * padTop(), 0.0, 0.0)
+            .build()
+        val update = CameraUpdateFactory.newCameraPosition(cam)
         if (animate) {
-            // Deliberate transition (mode switch, recenter): ease, and keep the frame loop's
-            // hands off the camera until it lands.
+            // Deliberate transition (recenter): ease, and keep the frame loop's hands off the
+            // camera until it lands.
             cameraHoldUntilMs = SystemClock.uptimeMillis() + CAMERA_EASE_MS
             m.easeCamera(update, CAMERA_EASE_MS, true)
         } else {
@@ -571,9 +669,10 @@ class MainActivity : Activity(), LocationBus.Listener {
         m.setStyle(Style.Builder().fromJson(json)) { style ->
             binding.panelEmpty.visibility = View.GONE
 
-            // Clamp zoom to what the file contains (+3 overzoom for vector: z14 tiles carry full
-            // detail and the GPU just scales the geometry, so z17 costs no extra tiles).
-            val overzoom = if (mapFile.isVector) 3.0 else 0.0
+            // Clamp zoom to what the file contains (+5 overzoom for vector: z14 tiles carry full
+            // detail and the GPU just scales the geometry, so the close z18 chase view costs no
+            // extra tiles).
+            val overzoom = if (mapFile.isVector) 5.0 else 0.0
             m.setMinZoomPreference(mapFile.minZoom.toDouble())
             m.setMaxZoomPreference(mapFile.maxZoom + overzoom)
 
@@ -643,18 +742,28 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val REQ_STORAGE = 1
         const val REQ_LOCATION = 2
 
-        const val DEFAULT_ZOOM = 12.0
-        const val NAV_ZOOM_2D = 16.0
-        const val NAV_ZOOM_3D = 17.0
-        const val MIN_FOLLOW_ZOOM = 14.0
-        const val MAX_FOLLOW_ZOOM = 18.0
+        const val MAX_RECENTS = 30
 
-        /** Fraction of the view height used as top padding: puts the car at 75% / 65% down. */
-        const val PAD_TOP_3D = 0.5
+        const val DEFAULT_ZOOM = 12.0
+        /** Street-level, like Google navigation: 2D shows this much road across the short side. */
+        const val NAV_SPAN_2D_M = 200.0
+        const val NAV_3D_EXTRA_ZOOM = 1.0
+        const val MIN_NAV_ZOOM = 15.0
+        /** Vector maps allow z14 + 5 overzoom (see show()). */
+        const val MAX_NAV_ZOOM = 19.0
+        /** How far a driver pinch may stray from [navZoom] before follow mode resets it. */
+        const val FOLLOW_ZOOM_OUT = 2.5
+        const val FOLLOW_ZOOM_IN = 1.0
+        const val EARTH_CIRCUMFERENCE_M = 40_075_016.7
+
+        /** Fraction of the view height used as top padding: puts the car at 78% / 65% down. */
+        const val PAD_TOP_3D = 0.56
         const val PAD_TOP_2D = 0.3
 
-        /** Mode switch / recenter transition length. */
-        const val CAMERA_EASE_MS = 600
+        /** Recenter ease length. */
+        const val CAMERA_EASE_MS = 800
+        /** Full 2D <-> 3D switch length (ease-in-out). */
+        const val VIEW_SWITCH_MS = 900f
         const val STALE_TICK_MS = 2000L
         const val REROUTE_MIN_MS = 10_000L
 

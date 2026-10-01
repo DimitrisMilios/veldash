@@ -1,16 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One row of the search list. A single TextView: the icon is a compound drawable, name and
-     detail are spans in one string. Transparent so the list's pressed selector shows through. -->
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- One search-dropdown row, Google Maps style: round icon badge, title over a dim subtitle,
+     optional trailing action ("Edit" on Home / Work). Bound in SearchPanel. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:drawablePadding="@dimen/gap_large"
-    android:fontFamily="sans-serif-condensed"
+    android:background="@drawable/bg_row"
     android:gravity="center_vertical"
     android:minHeight="@dimen/row_height"
+    android:orientation="horizontal"
     android:paddingStart="@dimen/gap_large"
-    android:paddingEnd="@dimen/gap_large"
+    android:paddingEnd="@dimen/gap"
     android:paddingTop="@dimen/gap"
-    android:paddingBottom="@dimen/gap"
-    android:textColor="@color/bat_text"
-    android:textSize="@dimen/text_body" />
+    android:paddingBottom="@dimen/gap">
+
+    <ImageView
+        android:id="@+id/row_icon"
+        android:layout_width="@dimen/row_icon"
+        android:layout_height="@dimen/row_icon"
+        android:background="@drawable/bg_icon_circle"
+        android:contentDescription="@null"
+        android:padding="@dimen/row_icon_padding"
+        android:scaleType="fitCenter" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/gap_large"
+        android:layout_marginEnd="@dimen/gap"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/row_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-condensed"
+            android:singleLine="true"
+            android:textColor="@color/bat_text"
+            android:textSize="@dimen/text_row_title" />
+
+        <TextView
+            android:id="@+id/row_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-condensed"
+            android:singleLine="true"
+            android:textColor="@color/bat_text_dim"
+            android:textSize="@dimen/text_row_subtitle" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/row_action"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/touch_target"
+        android:background="@drawable/bg_icon_button"
+        android:fontFamily="sans-serif-condensed"
+        android:gravity="center"
+        android:minWidth="@dimen/touch_target"
+        android:paddingStart="@dimen/gap_medium"
+        android:paddingEnd="@dimen/gap_medium"
+        android:text="@string/edit"
+        android:textColor="@color/bat_yellow"
+        android:textSize="@dimen/text_row_subtitle"
+        android:textStyle="bold"
+        android:visibility="gone" />
+</LinearLayout>

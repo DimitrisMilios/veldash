@@ -7,13 +7,14 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Offline favorites: a JSON array in the app's private files dir. Loaded once on the
- * background thread, then held in memory; every change writes a snapshot asynchronously.
+ * An ordered list of places (favorites, recent destinations): a JSON array in the app's private
+ * files dir. Loaded once on the background thread, then held in memory; every change writes a
+ * snapshot asynchronously. Newest first; beyond [maxItems] the oldest entries drop off.
  * All public methods are main-thread only.
  */
-class Favorites(context: Context) {
+class PlaceStore(context: Context, fileName: String, private val maxItems: Int = Int.MAX_VALUE) {
 
-    private val file = File(context.filesDir, "favorites.json")
+    private val file = File(context.filesDir, fileName)
     private val items = ArrayList<Place>()
 
     @Volatile
@@ -31,13 +32,14 @@ class Favorites(context: Context) {
 
     fun all(): List<Place> = ArrayList(items)
 
-    fun isFavorite(lat: Double, lon: Double): Boolean = items.any { it.sameSpot(lat, lon) }
+    fun contains(lat: Double, lon: Double): Boolean = items.any { it.sameSpot(lat, lon) }
 
     fun find(lat: Double, lon: Double): Place? = items.firstOrNull { it.sameSpot(lat, lon) }
 
     fun add(p: Place) {
         items.removeAll { it.sameSpot(p.lat, p.lon) }
         items.add(0, p)
+        while (items.size > maxItems) items.removeAt(items.size - 1)
         save()
     }
 
@@ -65,7 +67,7 @@ class Favorites(context: Context) {
                     tmp.delete()
                 }
             } catch (e: Exception) {
-                // Storage full or read-only: favorites stay in memory for this session.
+                // Storage full or read-only: the list stays in memory for this session.
             }
         }
     }

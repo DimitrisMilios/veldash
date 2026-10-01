@@ -4,6 +4,7 @@ import android.content.Context
 import com.veldash.routing.Route
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -33,7 +34,7 @@ class RouteOverlay(private val context: Context) {
         style.addLayerBelow(
             LineLayer(LAYER_ROUTE_CASING, SRC_ROUTE).withProperties(
                 PropertyFactory.lineColor(CASING_COLOR),
-                PropertyFactory.lineWidth(ROUTE_WIDTH + CASING_EXTRA),
+                PropertyFactory.lineWidth(routeWidth(CASING_EXTRA)),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             ),
@@ -42,7 +43,7 @@ class RouteOverlay(private val context: Context) {
         style.addLayerBelow(
             LineLayer(LAYER_ROUTE, SRC_ROUTE).withProperties(
                 PropertyFactory.lineColor(ROUTE_COLOR),
-                PropertyFactory.lineWidth(ROUTE_WIDTH),
+                PropertyFactory.lineWidth(routeWidth(0f)),
                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             ),
@@ -67,6 +68,18 @@ class RouteOverlay(private val context: Context) {
         routeSource = rs
         destSource = ds
     }
+
+    /**
+     * Route width grows with zoom, like Google: a thin thread across the city, a band nearly as
+     * wide as the road in the close chase view. [extra] widens the casing by a constant.
+     */
+    private fun routeWidth(extra: Float): Expression = Expression.interpolate(
+        Expression.exponential(1.5f), Expression.zoom(),
+        Expression.stop(10, 3f + extra),
+        Expression.stop(14, 6f + extra),
+        Expression.stop(17, 14f + extra),
+        Expression.stop(19, 26f + extra),
+    )
 
     fun setRoute(route: Route?) {
         routeSource?.setGeoJson(route?.let(::lineJson) ?: EMPTY)
@@ -110,8 +123,7 @@ class RouteOverlay(private val context: Context) {
 
         const val ROUTE_COLOR = "#FFE600"
         const val CASING_COLOR = "#000000"
-        const val ROUTE_WIDTH = 8f
-        const val CASING_EXTRA = 4f
+        const val CASING_EXTRA = 3f
 
         const val EMPTY = "{\"type\":\"FeatureCollection\",\"features\":[]}"
     }
