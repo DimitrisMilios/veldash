@@ -40,7 +40,7 @@ function step() {
     setTimeout(() => {
       adb(["exec-out", "screencap", "-p"], path.join(shotsDir, `${tag}-end.png`));
       console.log(`fixes sent: ${i}`);
-      console.log(adb(["shell", "dumpsys", "meminfo", "com.veldash"]).split("\n")
+      console.log(adb(["shell", "dumpsys", "meminfo", "com.papajimmi.veldash"]).split("\n")
         .filter(l => /^\s+(Native Heap|Dalvik Heap|TOTAL)\s/.test(l)).slice(0, 3).join("\n"));
       console.log("DRIVE_DONE");
       sock.end();
@@ -54,7 +54,7 @@ function step() {
     adb(["exec-out", "screencap", "-p"], path.join(shotsDir, `${tag}-${String(i).padStart(3, "0")}.png`));
   }
   if (i === 60) {
-    console.log(adb(["shell", "dumpsys", "meminfo", "com.veldash"]).split("\n")
+    console.log(adb(["shell", "dumpsys", "meminfo", "com.papajimmi.veldash"]).split("\n")
       .filter(l => /^\s+(Native Heap|Dalvik Heap|TOTAL)\s/.test(l)).slice(0, 3).join("\n"));
   }
   setTimeout(step, 1000);

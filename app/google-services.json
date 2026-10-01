@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "445942117546",
+    "project_id": "veldash",
+    "storage_bucket": "veldash.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:445942117546:android:bcea71a4a68cd704914cd3",
+        "android_client_info": {
+          "package_name": "com.papajimmi.veldash"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZbdi7nxP8J_uNhxieYfZVVx2jDKGMaVs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

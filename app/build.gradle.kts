@@ -1,8 +1,11 @@
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
 import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    // Upload-only: `./gradlew appDistributionUploadRelease`. Adds nothing to the APK.
+    alias(libs.plugins.firebase.appdistribution)
 }
 
 // Optional: put MAPBOX_TOKEN=pk.xxx in local.properties (git-ignored).
@@ -13,12 +16,32 @@ val localProps = Properties().apply {
 }
 val mapboxToken: String = localProps.getProperty("MAPBOX_TOKEN", "")
 
+// The package name registered in the Firebase project (app/google-services.json). App
+// Distribution only accepts APKs whose package matches the registered app.
+val appPackage = "com.papajimmi.veldash"
+
+// Firebase app id for App Distribution, read straight from google-services.json so the Google
+// services plugin (and the resources it generates) is not needed.
+val firebaseAppId: String = run {
+    val f = project.file("google-services.json")
+    if (!f.exists()) return@run ""
+    val root = groovy.json.JsonSlurper().parseText(f.readText()) as Map<*, *>
+    val clients = root["client"] as? List<*> ?: return@run ""
+    clients.asSequence()
+        .mapNotNull { (it as? Map<*, *>)?.get("client_info") as? Map<*, *> }
+        .firstOrNull { (it["android_client_info"] as? Map<*, *>)?.get("package_name") == appPackage }
+        ?.get("mobilesdk_app_id") as? String ?: ""
+}
+
+// Which ABI build to upload: `-PabiToUpload=armeabi-v7a` for 32-bit head units.
+val abiToUpload: String = (project.findProperty("abiToUpload") as String?) ?: "arm64-v8a"
+
 android {
     namespace = "com.veldash"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.veldash"
+        applicationId = appPackage
         // 21 = Android 5.0. Covers the oldest head units that can still run MapLibre 11 (OpenGL ES 2.0).
         minSdk = 21
         targetSdk = 35
@@ -57,6 +80,21 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            // Firebase App Distribution. Authenticates through the Firebase CLI login
+            // (`firebase login`) or a service account via FIREBASE_TOKEN / GOOGLE_APPLICATION_CREDENTIALS.
+            // Run `./gradlew assembleRelease appDistributionUploadRelease [-PabiToUpload=armeabi-v7a]`.
+            firebaseAppDistribution {
+                appId = firebaseAppId
+                artifactType = "APK"
+                artifactPath = layout.buildDirectory
+                    .file("outputs/apk/release/app-$abiToUpload-release.apk").get().asFile.absolutePath
+                testers = "dimitrismilios1999@gmail.com"
+                releaseNotes = when (abiToUpload) {
+                    "armeabi-v7a" -> "Veldash ${defaultConfig.versionName}, 32-bit build (armeabi-v7a). Installs on every ARM head unit."
+                    else -> "Veldash ${defaultConfig.versionName}, 64-bit build ($abiToUpload). If the unit refuses it, install the armeabi-v7a release instead."
+                }
+            }
         }
         debug {
             // Keep debug builds honest: same ABI filtering, no extra instrumentation.
@@ -64,8 +102,8 @@ android {
             applicationIdSuffix = ".debug"
         }
         // "bench": byte-for-byte the release build (R8, shrinking, same applicationId) but debuggable,
-        // so `adb shell run-as com.veldash` can copy map/segment files into the app's storage on
-        // emulators and profilers can attach. Never ship this variant.
+        // so `adb shell run-as com.papajimmi.veldash` can copy map/segment files into the app's
+        // storage on emulators and profilers can attach. Never ship this variant.
         create("bench") {
             initWith(getByName("release"))
             isDebuggable = true

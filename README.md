@@ -12,12 +12,31 @@ Ultra-light offline/online navigation app for low-spec aftermarket Android head 
 Optional: put `MAPBOX_TOKEN=pk.xxx` in `local.properties` for the Mapbox Directions API.
 Without it the app falls back to OSRM.
 
+The package name is `com.papajimmi.veldash` (the app registered in the Firebase project); the
+code lives under `com.veldash`. Release builds are signed with the debug keystore so they
+install straight from App Distribution.
+
+## Sending a build to the car (Firebase App Distribution)
+
+`app/google-services.json` is the Firebase config of the `veldash` project. The Gradle plugin
+reads the app id from it and authenticates through the Firebase CLI login (`firebase login`),
+or through `FIREBASE_TOKEN` / `GOOGLE_APPLICATION_CREDENTIALS` on a CI machine. Testers are
+set in `app/build.gradle.kts`.
+
+```bash
+./gradlew :app:assembleRelease :app:appDistributionUploadRelease
+```
+
+That uploads the 64-bit (arm64-v8a) APK. For a 32-bit head unit add `-PabiToUpload=armeabi-v7a`
+(that build also installs on 64-bit units). Testers get an email with the install link and can
+download it on the head unit through the App Distribution web page or the App Tester app.
+
 ## Map files
 
 Veldash renders `.mbtiles` files in place, straight from the filesystem. Copy your files to:
 
 ```
-/sdcard/Android/data/com.veldash/files/maps/
+/sdcard/Android/data/com.papajimmi.veldash/files/maps/
 ```
 
 On Android 12 and below it also scans `/sdcard/veldash/` and `/sdcard/Download/`.
@@ -35,7 +54,7 @@ Long-press the map to set a destination. Back clears the route.
   `https://brouter.de/brouter/segments4/`) to:
 
 ```
-/sdcard/Android/data/com.veldash/files/brouter/segments/
+/sdcard/Android/data/com.papajimmi.veldash/files/brouter/segments/
 ```
 
 For Greece that is `E20_N35.rd5` and `E25_N35.rd5`. The car profile and lookup table ship
@@ -44,24 +63,26 @@ BRouter repository, `misc/profiles2/`). Without those two assets offline routing
 
 ## Dashboard
 
-The screen is laid out like a Batman GPS: gunmetal bars with yellow-on-dark capitals, the map
-in the band between them.
+An edge-to-edge map with flat ink-glass islands floating over it, laid out like Google Maps:
+near-black panels at 90% with a hairline edge, Roboto Medium numerals under tiny tracked
+labels, and bat-signal yellow kept for what matters (the route, the turn arrow, the time left,
+the one call to action).
 
-- **Top banner:** `WHERE TO?` when idle (tap it to open search), or `TO: <destination>` with an
-  `END ROUTE` button while a destination is set. The grey bat sits in the middle; `MAPS` at the
-  right loads or switches the `.mbtiles` file.
-- **Next-turn card** (top-left of the map, while navigating): yellow arrow,
-  `NEXT: RIGHT TURN (700 M)`, then the street name.
-- **Readouts** (bottom): `ROUTING…` / `NO ROUTE` / `ARRIVED`, then `ETA` (arrival time and
-  minutes left), `DIST`, `SPEED` and `MODE` (`3D CHASE`, `2D TOP-DOWN` or `FREE LOOK` once you
-  have panned away).
-- **Action row:** `SEARCH` (dropdown with the keyboard up), `SAVED` (Home / Work, favorites and
-  recents, no keyboard), `HOME` (drive to the Home shortcut, or set it first), `VIEW` (3D / 2D,
-  lit while 3D) and `BATMOBILE` (lit while the camera follows the car; after a pan it turns into
-  the yellow `RECENTER` slab, and tapping it while following resets the zoom and heading).
+- **Destination pill** (top-left): `Where to?` when idle (tap it to open search: Home / Work,
+  saved and recent places), or the bat, `TO` and the destination name with a round end-route
+  cross while a destination is set.
+- **Next-turn card** (under the pill, while navigating): yellow accent strip, the arrow, the
+  maneuver label over the big distance, then the street name.
+- **MAPS** (round button, top-right): loads or switches the `.mbtiles` file.
+- **Trip island** (bottom-left): the speedometer badge, then `Routing…` / `No route` /
+  `Arrived`, or the time left in yellow over `distance · arrival time`.
+- **Round buttons** (bottom-right): `3D` / `2D` (glyph lit yellow while 3D) and the Batman
+  logo, which recenters on the batmobile: quiet glass while the camera follows the car, a solid
+  yellow disc once you have panned away, and tapping it while following resets the zoom and
+  heading.
 
-Every slab is a plain XML shape drawable and every label is the system condensed font in
-capitals: no font files, no image assets, no libraries.
+Every island is a plain XML shape drawable and every label is the system Roboto: no font
+files, no image assets beyond the bat logo, no libraries, no gradients.
 
 ## Search and favorites
 
@@ -160,9 +181,9 @@ Use the `bench` build type (release + debuggable) and copy files through `run-as
 ./gradlew :app:assembleBench
 adb install -r -g app/build/outputs/apk/bench/app-x86_64-bench.apk
 adb push north-greece.mbtiles segments/*.rd5 /data/local/tmp/veldash/
-adb shell run-as com.veldash --user 10 sh -c 'D=/data/user/10/com.veldash/files; mkdir -p $D/maps $D/brouter/segments; cp /data/local/tmp/veldash/*.mbtiles $D/maps/; cp /data/local/tmp/veldash/*.rd5 $D/brouter/segments/'
+adb shell run-as com.papajimmi.veldash --user 10 sh -c 'D=/data/user/10/com.papajimmi.veldash/files; mkdir -p $D/maps $D/brouter/segments; cp /data/local/tmp/veldash/*.mbtiles $D/maps/; cp /data/local/tmp/veldash/*.rd5 $D/brouter/segments/'
 adb shell settings put secure --user 10 location_mode 3
-adb shell am start --user 10 -n com.veldash/.MainActivity
+adb shell am start --user 10 -n com.papajimmi.veldash/com.veldash.MainActivity
 ```
 
 The app scans its internal `files/maps` and `files/brouter/segments` as well as the external
