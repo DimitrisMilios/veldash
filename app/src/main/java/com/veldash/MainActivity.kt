@@ -27,6 +27,7 @@ import com.veldash.map.MapFile
 import com.veldash.map.MapRepository
 import com.veldash.map.MapSetup
 import com.veldash.map.RouteOverlay
+import com.veldash.nav.FollowGate
 import com.veldash.nav.Navigator
 import com.veldash.nav.SmoothMotion
 import com.veldash.routing.OfflineRouter
@@ -44,6 +45,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.gestures.MoveGestureDetector
+import org.maplibre.android.gestures.StandardScaleGestureDetector
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -104,6 +106,19 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     /** While a deliberate camera ease (recenter) plays, per-frame camera moves pause. */
     private var cameraHoldUntilMs = 0L
+
+    /**
+     * Decides whether a touch gesture frees the camera (a real drag) or keeps following (a
+     * pinch or quick zoom). While it is busy the frame loop leaves the camera to the finger.
+     */
+    private val followGate by lazy { FollowGate(breakPx = DRAG_BREAK_DP * resources.displayMetrics.density) }
+
+    /**
+     * 1 at the navigation zoom, falling as the driver zooms out: the chase view flattens and the
+     * car moves up towards centre, like a camera pulling back and looking down. Set per frame
+     * by [followCamera] from the zoom it actually applied.
+     */
+    private var pitchScale = 1f
 
     // ---- 2D <-> 3D switch: tilt, top padding, zoom and the car art all blend on one curve ----
     /** 0 = flat 2D, 1 = 3D chase. Equals [blendTo] except while a switch plays. */
@@ -203,10 +218,21 @@ class MainActivity : Activity(), LocationBus.Listener {
             map = m
             MapSetup.tune(m)
             // A drag (not a pinch) means the driver wants to look around: stop following.
+            // A pinch zoom keeps following (the chase view just zooms); only a real one-finger
+            // drag past a small threshold frees the camera. Two-finger drift during a pinch is
+            // ignored, and the frame loop leaves the camera alone while the pinch is in progress.
+            m.addOnScaleListener(object : MapLibreMap.OnScaleListener {
+                override fun onScaleBegin(detector: StandardScaleGestureDetector) = followGate.onScaleBegin()
+                override fun onScale(detector: StandardScaleGestureDetector) = Unit
+                override fun onScaleEnd(detector: StandardScaleGestureDetector) = followGate.onScaleEnd()
+            })
             m.addOnMoveListener(object : MapLibreMap.OnMoveListener {
-                override fun onMoveBegin(detector: MoveGestureDetector) = setFollow(false)
-                override fun onMove(detector: MoveGestureDetector) = Unit
-                override fun onMoveEnd(detector: MoveGestureDetector) = Unit
+                override fun onMoveBegin(detector: MoveGestureDetector) = followGate.onMoveBegin(m.cameraPosition.zoom)
+                override fun onMove(detector: MoveGestureDetector) =
+                    followGate.onMove(detector.lastDistanceX, detector.lastDistanceY, detector.pointersCount)
+                override fun onMoveEnd(detector: MoveGestureDetector) {
+                    if (followGate.onMoveEnd(m.cameraPosition.zoom)) setFollow(false)
+                }
             })
             // Long-press anywhere = "take me there".
             m.addOnMapLongClickListener { p ->
@@ -290,16 +316,25 @@ class MainActivity : Activity(), LocationBus.Listener {
             if (blendChanged) tiltInPlace()
             return
         }
-        val useOverlay = follow && SystemClock.uptimeMillis() >= cameraHoldUntilMs
-        if (useOverlay) {
-            followCamera(motion.lat, motion.lon, camBearing, animate = false)
+        if (follow) {
+            // During a touch gesture or a recenter ease the camera is someone else's; the car
+            // stays put as the overlay and catches up the moment the gesture ends.
+            if (!followGate.busy && SystemClock.uptimeMillis() >= cameraHoldUntilMs) {
+                followCamera(motion.lat, motion.lon, camBearing, animate = false)
+            }
             marker.setShown(false)
             showCarOverlay(true)
         } else {
-            // Panned (free camera): the map-layer marker with the top-down render lying flat on
-            // the road, rotated to the car's heading. The layer handles perspective and zoom.
-            marker.setArt(sprites.topDown())
-            marker.update(motion.lat, motion.lon, motion.bearing)
+            // Panned (free camera): the map-layer marker with the straight-behind render for the
+            // current tilt. A pitched render cannot be rotated on screen without looking wrong
+            // (a car heading away from the camera comes out upside-down), so in 3D it stays
+            // upright and nose-up; the route line shows the heading. Once the view is nearly
+            // flat the top-down render rotates with the heading correctly. The layer scales by zoom.
+            val tilt = MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale
+            sprites.pick(tilt, 0f, pick)
+            pick.bitmap?.let { marker.setArt(it) }
+            val camB = map?.cameraPosition?.bearing?.toFloat() ?: 0f
+            marker.update(motion.lat, motion.lon, if (tilt < FLAT_MARKER_TILT_DEG) motion.bearing else camB)
             marker.setShown(true)
             showCarOverlay(false)
             if (blendChanged) tiltInPlace()
@@ -366,7 +401,11 @@ class MainActivity : Activity(), LocationBus.Listener {
     }
 
     /** Top padding (fraction of height) for the current blend: the car sinks as the view tilts. */
-    private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend
+    private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend * pitchScale
+
+    /** How much of the full chase pitch to use at [zoom]: full at the nav zoom, flatter zoomed out. */
+    private fun pitchFactor(zoom: Double, nav: Double): Float =
+        (1.0 - (nav - zoom) / PITCH_FLATTEN_ZOOMS).coerceIn(PITCH_MIN_FACTOR.toDouble(), 1.0).toFloat()
 
     /**
      * The batmobile overlay, centred on the camera target: the render for the current tilt and
@@ -384,7 +423,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             if (v2.visibility != View.GONE) v2.visibility = View.GONE
             return
         }
-        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend, motion.bearing - camBearing, pick)
+        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale, motion.bearing - camBearing, pick)
         val bmp = pick.bitmap ?: return
         if (bmp !== shownCar) {
             shownCar = bmp
@@ -613,10 +652,11 @@ class MainActivity : Activity(), LocationBus.Listener {
             !forceZoom && current in (nav - FOLLOW_ZOOM_OUT)..(nav + FOLLOW_ZOOM_IN) -> current
             else -> nav
         }
+        pitchScale = pitchFactor(zoom, nav)
         val cam = CameraPosition.Builder()
             .target(LatLng(lat, lon))
             .bearing(bearing.toDouble())
-            .tilt(MapSetup.MAX_PITCH * viewBlend)
+            .tilt(MapSetup.MAX_PITCH * viewBlend * pitchScale)
             .zoom(zoom)
             .padding(0.0, h * padTop(), 0.0, 0.0)
             .build()
@@ -819,8 +859,14 @@ class MainActivity : Activity(), LocationBus.Listener {
         /** Vector maps allow z14 + 5 overzoom (see show()). */
         const val MAX_NAV_ZOOM = 19.0
         /** How far a driver pinch may stray from [navZoom] before follow mode resets it. */
-        const val FOLLOW_ZOOM_OUT = 2.5
+        const val FOLLOW_ZOOM_OUT = 3.5
         const val FOLLOW_ZOOM_IN = 1.0
+
+        /** One-finger drag that frees the camera; smaller moves and pinch drift are ignored. */
+        const val DRAG_BREAK_DP = 24f
+        /** Zoom levels out from the nav zoom over which the chase pitch flattens to [PITCH_MIN_FACTOR]. */
+        const val PITCH_FLATTEN_ZOOMS = 3.5
+        const val PITCH_MIN_FACTOR = 0.35f
         const val EARTH_CIRCUMFERENCE_M = 40_075_016.7
 
         /** Fraction of the view height used as top padding: puts the car at 78% / 65% down. */
@@ -837,8 +883,11 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val CAMERA_BEARING_TAU_S = 0.5
 
         /** Follow-mode car size relative to the navigation zoom: shrinks when zoomed out. */
-        const val CAR_SCALE_MIN = 0.45f
+        const val CAR_SCALE_MIN = 0.25f
         const val CAR_SCALE_MAX = 1.25f
+
+        /** Below this tilt the free-camera marker is the (rotatable) near-top-down render. */
+        const val FLAT_MARKER_TILT_DEG = 20f
         /** Full 2D <-> 3D switch length (ease-in-out). */
         const val VIEW_SWITCH_MS = 900f
         const val STALE_TICK_MS = 2000L

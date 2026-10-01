@@ -16,8 +16,8 @@ import org.maplibre.geojson.Point
  *
  * Deliberately NOT MapLibre's LocationComponent, which adds four layers, a pulsing animation,
  * a compass engine and a stack of classes. This is one GeoJSON source, one symbol layer and one
- * bitmap (the top-down render from [CarSprites.topDown]). It is only shown while the camera is
- * free; in follow mode the car is a screen overlay. Updating it is a single setGeoJson() call.
+ * bitmap (the [CarSprites] render for the current tilt and heading). It is only shown while the
+ * camera is free; in follow mode the car is a screen overlay. Updating it is one setGeoJson().
  *
  * Lives on top of the style, so it must be re-attached every time a new style is set.
  */
@@ -48,12 +48,11 @@ class BatmobileMarker {
             ),
             PropertyFactory.iconAllowOverlap(true),
             PropertyFactory.iconIgnorePlacement(true),
-            // This marker is used when the camera is free (not following). The art is the
-            // top-down render, so it lies flat on the road in map space: rotated with the map,
-            // foreshortened with the streets in 3D, smaller with distance. Correct from any
-            // angle and zoom, unlike an upright chase render seen from the wrong side.
+            // Rotate with the map, not the screen, so the car points along the road...
             PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
+            // ...but draw it upright to the screen: the art is the 3D render for the current
+            // tilt and heading, which already carries its own perspective.
+            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
             PropertyFactory.iconRotate(Expression.get(PROP_BEARING)),
             PropertyFactory.visibility(if (fix != null) Property.VISIBLE else Property.NONE),
         )
