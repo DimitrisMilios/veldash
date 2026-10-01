@@ -246,18 +246,11 @@ class MainActivity : Activity(), LocationBus.Listener {
             loadSavedMap()
         }
 
-        // Top banner.
-        binding.btnDestination.setOnClickListener { toggleSearch(focus = false) }
+        // Destination pill (opens search), MAPS, and the two round map buttons.
+        binding.btnDestination.setOnClickListener { toggleSearch() }
         binding.btnEndRoute.setOnClickListener { clearRoute() }
         binding.btnLoadMap.setOnClickListener { pickMap() }
         binding.btnEmptyLoadMap.setOnClickListener { pickMap() }
-
-        // Action row.
-        binding.btnSearch.setOnClickListener { toggleSearch(focus = true) }
-        binding.btnSaved.setOnClickListener { toggleSearch(focus = false) }
-        binding.btnHome.setOnClickListener { searchPanel.driveHome() }
-        // The chase render, trimmed tight: the most batmobile-shaped frame at icon size.
-        binding.imgRecenter.setImageBitmap(sprites.icon())
         binding.btnRecenter.setOnClickListener { recenter() }
         updateRecenterButton()
 
@@ -276,14 +269,14 @@ class MainActivity : Activity(), LocationBus.Listener {
         handleGeoIntent(intent)
     }
 
-    /** SEARCH / SAVED / the banner: open the dropdown, or close it if it is already up. */
-    private fun toggleSearch(focus: Boolean) {
-        if (searchPanel.isOpen) searchPanel.close() else searchPanel.open(focus = focus)
+    /** The destination pill: open the dropdown, or close it if it is already up. */
+    private fun toggleSearch() {
+        if (searchPanel.isOpen) searchPanel.close() else searchPanel.open()
     }
 
     /**
-     * BATMOBILE button. Panned away: follow again. Already following: snap the zoom and heading
-     * back to the navigation view (undoes a pinch).
+     * The Batman button. Panned away: follow again. Already following: snap the zoom and
+     * heading back to the navigation view (undoes a pinch).
      */
     private fun recenter() {
         if (!follow) {
@@ -664,23 +657,19 @@ class MainActivity : Activity(), LocationBus.Listener {
         applyMotion()
     }
 
-    /** VIEW button: the glyph is the current mode, and the slab is lit while 3D is on. */
+    /** 3D / 2D button: the glyph is the current mode, lit yellow while 3D is on. */
     private fun updateViewModeButton() {
         binding.txtViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
         binding.btnViewMode.isActivated = view3d
-        hud.showMode(view3d, follow)
     }
 
     /**
-     * BATMOBILE button: lit (activated) while the camera follows the car; once the driver has
-     * panned away it becomes the yellow accent slab (selected) reading RECENTER, the one thing
-     * to find at a glance.
+     * The Batman button: quiet glass while the camera follows the car; once the driver has
+     * panned away the whole disc turns yellow (selected), the one thing to find at a glance.
      */
     private fun updateRecenterButton() {
         binding.btnRecenter.isActivated = follow
         binding.btnRecenter.isSelected = !follow
-        binding.txtRecenter.setText(if (follow) R.string.nav_batmobile else R.string.nav_recenter)
-        hud.showMode(view3d, follow)
     }
 
     /**
@@ -923,7 +912,10 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val PITCH_MIN_FACTOR = 0.35f
         const val EARTH_CIRCUMFERENCE_M = 40_075_016.7
 
-        /** Fraction of the view height used as top padding: puts the car at 78% / 65% down. */
+        /**
+         * Fraction of the view height used as top padding: puts the car at 78% / 65% down,
+         * between the trip island and the round buttons in the bottom corners.
+         */
         const val PAD_TOP_3D = 0.56
         const val PAD_TOP_2D = 0.3
 

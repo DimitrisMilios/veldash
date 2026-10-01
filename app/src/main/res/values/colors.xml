@@ -1,35 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Batman palette: pure black surfaces, bat-signal yellow accents. High contrast for sunlight. -->
+    <!-- Base palette: near-black ink, bat-signal yellow, white type. High contrast for sunlight. -->
     <color name="bat_black">#000000</color>
-    <color name="bat_surface">#121212</color>
-    <color name="bat_surface_high">#1E1E1E</color>
     <color name="bat_yellow">#FFE600</color>
-    <!-- Top / bottom of the lit-from-above gradient on yellow surfaces. -->
-    <color name="bat_yellow_light">#FFF36B</color>
-    <color name="bat_yellow_deep">#FFCC00</color>
+    <color name="bat_yellow_pressed">#D9C300</color>
+    <!-- The lane not taken in the keep-left / keep-right arrows. -->
     <color name="bat_yellow_dim">#B3A100</color>
     <color name="bat_text">#FFFFFF</color>
-    <color name="bat_text_dim">#9E9E9E</color>
+    <color name="bat_text_dim">#9AA0A8</color>
     <!-- Dims the map behind the open search dropdown. -->
     <color name="bat_scrim">#99000000</color>
 
-    <!-- Gunmetal dashboard chrome: every bar, card and button is a top-lit charcoal slab with a
-         black outer edge and a one-pixel lighter bevel along its top (see bg_bar / bg_panel). -->
-    <color name="gun_edge">#000000</color>
-    <color name="gun_highlight">#5C6069</color>
-    <color name="gun_top">#3E424A</color>
-    <color name="gun_mid">#25282E</color>
-    <color name="gun_bottom">#15171B</color>
-    <color name="gun_pressed">#0C0D10</color>
-    <!-- Recessed well (search field) inside a slab. -->
-    <color name="gun_well">#0A0B0E</color>
-    <!-- Engraved divider between readouts: a dark line next to a light one. -->
-    <color name="gun_divider_light">#4A4E57</color>
-    <!-- Button icons and labels when not lit. -->
-    <color name="gun_text">#D4D7DC</color>
-    <!-- The bat emblem engraved in the top banner. -->
-    <color name="gun_emblem">#7C808A</color>
+    <!-- Floating islands over the map: 90% ink glass with a hairline of 12% white. Flat, no
+         gradients, no bevels. The dropdown is a little denser so its rows read cleanly. -->
+    <color name="ink">#0F1115</color>
+    <color name="ink_glass">#E60F1115</color>
+    <color name="ink_glass_pressed">#E6232730</color>
+    <color name="ink_glass_deep">#F50B0D10</color>
+    <color name="ink_line">#1FFFFFFF</color>
+    <!-- Wells and chips inside an island: 8% white, 16% when pressed. -->
+    <color name="ink_fill">#14FFFFFF</color>
+    <color name="ink_fill_hi">#29FFFFFF</color>
+    <!-- Small tracked labels (ARRIVAL, SPEED), secondary copy, idle button glyphs. -->
+    <color name="text_label">#8B9099</color>
+    <color name="text_secondary">#C3C7CE</color>
+    <color name="icon_idle">#C9CDD3</color>
 
     <!-- Map overlay colors (route line, casing). -->
     <color name="route_line">#FFE600</color>

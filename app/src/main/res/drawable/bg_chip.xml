@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Borderless round icon button: invisible until pressed or rotary-focused. -->
+<!-- Round chip inside an island (END ROUTE cross, list-row icon badges): 8% white, 16% pressed. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="oval">
@@ -9,7 +9,12 @@
     <item android:state_focused="true">
         <shape android:shape="oval">
             <solid android:color="@color/ink_fill" />
+            <stroke android:width="2dp" android:color="@color/bat_yellow" />
         </shape>
     </item>
-    <item android:drawable="@android:color/transparent" />
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/ink_fill" />
+        </shape>
+    </item>
 </selector>

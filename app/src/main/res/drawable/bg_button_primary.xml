@@ -1,27 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Primary action: bat-signal yellow slab, lit from above, black edge and text. -->
+<!-- Primary action: flat bat-signal yellow pill, black text. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <corners android:radius="8dp" />
-            <solid android:color="@color/bat_yellow_dim" />
-            <stroke android:width="1dp" android:color="@color/gun_edge" />
+            <corners android:radius="28dp" />
+            <solid android:color="@color/bat_yellow_pressed" />
         </shape>
     </item>
     <item>
-        <layer-list>
-            <item>
-                <shape android:shape="rectangle">
-                    <corners android:radius="8dp" />
-                    <solid android:color="@color/gun_edge" />
-                </shape>
-            </item>
-            <item android:left="1dp" android:top="1dp" android:right="1dp" android:bottom="1dp">
-                <shape android:shape="rectangle">
-                    <corners android:radius="7dp" />
-                    <gradient android:angle="270" android:startColor="@color/bat_yellow_light" android:endColor="@color/bat_yellow_deep" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <corners android:radius="28dp" />
+            <solid android:color="@color/bat_yellow" />
+        </shape>
     </item>
 </selector>

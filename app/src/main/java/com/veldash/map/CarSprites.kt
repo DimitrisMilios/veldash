@@ -179,21 +179,6 @@ class CarSprites(private val context: Context) {
         return Bitmap.createBitmap(b, left, top, (2 * hw).coerceAtMost(w - left), (2 * hh).coerceAtMost(h - top))
     }
 
-    private var icon: Bitmap? = null
-
-    /**
-     * The chase render trimmed tight to the car (no ground-point margins, which at icon size
-     * would shrink it to a smudge): the picture on the BATMOBILE button. Built once.
-     */
-    fun icon(): Bitmap = icon ?: tight(tiltFrame(TILT_STEPS - 1)).also { icon = it }
-
-    private fun tight(b: Bitmap): Bitmap {
-        val r = contentBounds(b) ?: return b
-        val out = Bitmap.createBitmap(b, r[0], r[1], r[2] - r[0] + 1, r[3] - r[1] + 1)
-        out.density = b.density
-        return out
-    }
-
     /** Bounding box [minX, minY, maxX, maxY] of the visible pixels, or null if there are none. */
     private fun contentBounds(b: Bitmap): IntArray? {
         val w = b.width

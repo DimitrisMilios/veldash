@@ -11,11 +11,11 @@ import com.veldash.routing.Route
 import java.util.Date
 
 /**
- * Binds navigation state to the dashboard views in activity_main.xml:
- *  - the top banner: "WHERE TO?" when idle, "TO: <destination>" plus END ROUTE otherwise;
- *  - the next-turn card over the map: a yellow arrow, "NEXT: RIGHT TURN (700 M)", the street;
- *  - the trip readouts along the bottom: ROUTING… / NO ROUTE / ARRIVED, ETA (with the time
- *    left), DIST, SPEED and MODE (3D chase / 2D top-down / free look).
+ * Binds navigation state to the islands in activity_main.xml:
+ *  - the destination pill: Where to? when idle, "To <destination>" plus the end-route cross;
+ *  - the next-turn card: yellow arrow, maneuver label over the big distance, the street;
+ *  - the trip island: the speedometer badge, then Routing… / No route / Arrived or the time
+ *    left in yellow over "distance · arrival time".
  *
  * All work here is setText/setImageResource on a handful of views, once per second.
  * Values are cached so unchanged text is not re-set (TextView.setText re-lays out).
@@ -26,18 +26,15 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
     private val date = Date()
 
     private var lastIcon = 0
-    private var maneuverName = ""
-    private var lastManeuverName: String? = null
+    private var lastTurnLabel: String? = null
     private var lastDistText: String? = null
-    private var lastTurn: String? = null
     private var lastStreet: String? = null
     private var lastStatus: String? = null
-    private var lastEta: String? = null
-    private var lastDist: String? = null
-    private var lastMode: String? = null
+    private var lastTimeLeft: String? = null
+    private var lastSub: String? = null
     private var lastDestination: String? = null
     private var lastSpeed = Int.MIN_VALUE
-    /** Starts true: the readout opens on the dim "--" placeholder. */
+    /** Starts true: the speed badge opens on the dim "--" placeholder with the unit hidden. */
     private var speedDim = true
     private var lastSpeedPlaceholder = R.string.speed_none
     /** True while the turn card shows a live distance that the frame loop may count down. */
@@ -48,10 +45,11 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
     fun showSpeed(kmh: Int) {
         if (kmh != lastSpeed || speedDim) {
             lastSpeed = kmh
-            b.txtSpeed.text = context.getString(R.string.speed_kmh, kmh)
+            b.txtSpeed.text = context.getString(R.string.speed_value, kmh)
             if (speedDim) {
                 speedDim = false
                 b.txtSpeed.setTextColor(color(R.color.bat_text))
+                b.txtSpeedUnit.visibility = View.VISIBLE
             }
         }
     }
@@ -64,36 +62,26 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
             lastSpeedPlaceholder = res
             b.txtSpeed.setText(res)
             b.txtSpeed.setTextColor(color(R.color.bat_text_dim))
+            b.txtSpeedUnit.visibility = View.GONE
         }
     }
 
-    // ---- Banner and mode ----
+    // ---- Destination pill ----
 
-    /** Top banner: "TO: name" with END ROUTE, or the WHERE TO? prompt when [name] is null. */
+    /** "To <name>" with the end-route cross, or the Where to? prompt when [name] is null. */
     fun showDestination(name: String?) {
         if (name == lastDestination) return
         lastDestination = name
         val routing = name != null
-        b.txtDestLabel.setText(if (routing) R.string.label_to else R.string.where_to)
+        val idleV = if (routing) View.GONE else View.VISIBLE
+        val routeV = if (routing) View.VISIBLE else View.GONE
+        b.imgDestIcon.visibility = idleV
+        b.txtWhereTo.visibility = idleV
+        b.imgDestBat.visibility = routeV
+        b.txtDestLabel.visibility = routeV
         b.txtDestName.text = name ?: ""
-        b.txtDestName.visibility = if (routing) View.VISIBLE else View.GONE
-        b.imgSearchHint.visibility = if (routing) View.GONE else View.VISIBLE
-        b.btnEndRoute.visibility = if (routing) View.VISIBLE else View.GONE
-    }
-
-    /** MODE readout: what the camera is doing. */
-    fun showMode(view3d: Boolean, follow: Boolean) {
-        val s = context.getString(
-            when {
-                !follow -> R.string.mode_free
-                view3d -> R.string.mode_3d
-                else -> R.string.mode_2d
-            },
-        )
-        if (s != lastMode) {
-            lastMode = s
-            b.txtMode.text = s
-        }
+        b.txtDestName.visibility = routeV
+        b.btnEndRoute.visibility = routeV
     }
 
     // ---- Navigation ----
@@ -102,29 +90,26 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
         setCardVisible(true)
         val next = state.next
         setIcon(iconFor(next?.type))
-        maneuverName = context.getString(nameFor(next?.type))
         countdown = true
-        setTurn(formatTurnDistance(state.distToNextM))
+        setTurnLabel(context.getString(nameFor(next?.type)))
+        setTurnDistance(formatTurnDistance(state.distToNextM))
         setStreet(next?.streetName ?: "")
         setStatus(null)
-        date.time = System.currentTimeMillis() + (state.remainingS * 1000).toLong()
-        setTrip(
-            context.getString(R.string.eta_value, timeFormat.format(date), formatDuration(state.remainingS)),
-            formatDistance(state.remainingM),
-        )
+        setTrip(state.remainingS, state.remainingM)
     }
 
     /** Frame-loop countdown between fixes. Only touches the view when the rounded text changes. */
     fun updateTurnDistance(m: Double) {
         if (!countdown || b.cardManeuver.visibility != View.VISIBLE) return
-        setTurn(formatTurnDistance(m))
+        setTurnDistance(formatTurnDistance(m))
     }
 
     fun showRerouting() {
         setCardVisible(true)
         setIcon(R.drawable.ic_turn_straight)
         countdown = false
-        setTurnText(context.getString(R.string.rerouting))
+        setTurnLabel(context.getString(R.string.rerouting))
+        setTurnDistance(null)
         setStreet("")
     }
 
@@ -132,38 +117,35 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
         setCardVisible(true)
         setIcon(R.drawable.bat_logo)
         countdown = false
-        setTurnText(context.getString(R.string.arrived))
+        setTurnLabel(context.getString(R.string.arrived))
+        setTurnDistance(null)
         setStreet("")
         setStatus(context.getString(R.string.arrived))
-        setTrip(null, null)
+        clearTrip()
     }
 
     fun showRouting() {
         setCardVisible(false)
         setStatus(context.getString(R.string.routing))
-        setTrip(null, null)
+        clearTrip()
     }
 
     fun showRouteFailed(reason: String) {
         setCardVisible(false)
         setStatus(if (reason.isBlank()) context.getString(R.string.route_failed) else context.getString(R.string.route_failed_reason, reason))
-        setTrip(null, null)
+        clearTrip()
     }
 
     fun showRouteSummary(r: Route) {
         setStatus(null)
-        date.time = System.currentTimeMillis() + (r.durationS * 1000).toLong()
-        setTrip(
-            context.getString(R.string.eta_value, timeFormat.format(date), formatDuration(r.durationS)),
-            formatDistance(r.distanceM),
-        )
+        setTrip(r.durationS, r.distanceM)
     }
 
     fun showIdle() {
         setCardVisible(false)
         countdown = false
         setStatus(null)
-        setTrip(null, null)
+        clearTrip()
         showDestination(null)
     }
 
@@ -181,23 +163,19 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
         }
     }
 
-    /** "NEXT: <maneuver> (<distance>)", rebuilt only when either part changes. */
-    private fun setTurn(dist: String) {
-        if (dist == lastDistText && maneuverName == lastManeuverName) return
-        lastDistText = dist
-        lastManeuverName = maneuverName
-        setTurnText(context.getString(R.string.next_turn, maneuverName, dist))
+    private fun setTurnLabel(s: String) {
+        if (s != lastTurnLabel) {
+            lastTurnLabel = s
+            b.txtTurnLabel.text = s
+        }
     }
 
-    private fun setTurnText(s: String) {
-        if (s != lastTurn) {
-            lastTurn = s
-            b.txtTurn.text = s
-        }
-        if (!countdown) {
-            // A fixed caption (REROUTING, ARRIVED): the next live distance must redraw.
-            lastDistText = null
-        }
+    /** The big distance; null hides it (Rerouting, Arrived). */
+    private fun setTurnDistance(s: String?) {
+        if (s == lastDistText) return
+        lastDistText = s
+        b.txtTurnDistance.text = s ?: ""
+        b.txtTurnDistance.visibility = if (s == null) View.GONE else View.VISIBLE
     }
 
     private fun setStreet(s: String) {
@@ -208,26 +186,46 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
         }
     }
 
-    /** The route-status readout (ROUTING…, NO ROUTE, ARRIVED); null hides it. */
+    /** The route-status reading (Routing…, No route, Arrived); null hides it. */
     private fun setStatus(s: String?) {
         if (s == lastStatus) return
         lastStatus = s
         b.txtTripStatus.text = s ?: ""
         b.txtTripStatus.visibility = if (s == null) View.GONE else View.VISIBLE
+        updateTripBlock()
     }
 
-    /** ETA and DIST readouts; null hides a segment (and its divider). */
-    private fun setTrip(eta: String?, dist: String?) {
-        if (eta != lastEta) {
-            lastEta = eta
-            b.txtEta.text = eta ?: ""
-            b.segEta.visibility = if (eta == null) View.GONE else View.VISIBLE
+    /** Time left (big, yellow) over "distance · arrival time". */
+    private fun setTrip(remainingS: Double, remainingM: Double) {
+        val timeLeft = formatDuration(remainingS)
+        if (timeLeft != lastTimeLeft) {
+            lastTimeLeft = timeLeft
+            b.txtTimeLeft.text = timeLeft
+            b.txtTimeLeft.visibility = View.VISIBLE
         }
-        if (dist != lastDist) {
-            lastDist = dist
-            b.txtDist.text = dist ?: ""
-            b.segDist.visibility = if (dist == null) View.GONE else View.VISIBLE
+        date.time = System.currentTimeMillis() + (remainingS * 1000).toLong()
+        val sub = context.getString(R.string.trip_sub, formatDistance(remainingM), timeFormat.format(date))
+        if (sub != lastSub) {
+            lastSub = sub
+            b.txtTripSub.text = sub
+            b.txtTripSub.visibility = View.VISIBLE
         }
+        updateTripBlock()
+    }
+
+    private fun clearTrip() {
+        if (lastTimeLeft == null && lastSub == null) return
+        lastTimeLeft = null
+        lastSub = null
+        b.txtTimeLeft.visibility = View.GONE
+        b.txtTripSub.visibility = View.GONE
+        updateTripBlock()
+    }
+
+    /** The island is just the speed badge until there is a status or a trip to show. */
+    private fun updateTripBlock() {
+        val v = if (lastStatus != null || lastTimeLeft != null) View.VISIBLE else View.GONE
+        if (b.tripBlock.visibility != v) b.tripBlock.visibility = v
     }
 
     @Suppress("DEPRECATION")

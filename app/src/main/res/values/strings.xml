@@ -13,46 +13,35 @@
     <string name="notif_channel">Navigation</string>
     <string name="notif_gps">GPS active</string>
 
-    <!-- Top banner. Rendered in capitals: "WHERE TO?" / "TO: ARKHAM ASYLUM". -->
+    <!-- Destination pill. -->
     <string name="where_to">Where to?</string>
-    <string name="label_to">To:</string>
+    <string name="label_to">To</string>
     <string name="dropped_pin">Dropped pin</string>
     <string name="end_route">End route</string>
 
-    <!-- Trip readouts (bottom status bar). -->
-    <string name="label_eta">ETA:</string>
-    <string name="label_dist">Dist:</string>
-    <string name="label_speed">Speed:</string>
-    <string name="label_mode">Mode:</string>
-    <string name="speed_kmh">%1$d km/h</string>
+    <!-- Trip island (bottom-left). -->
+    <string name="speed_value">%1$d</string>
+    <string name="speed_unit">km/h</string>
     <string name="speed_none">--</string>
-    <string name="gps_off">GPS off</string>
-    <!-- Arrival time, then the time left: "8:36 PM (12 MIN)". -->
-    <string name="eta_value">%1$s (%2$s)</string>
-    <string name="mode_3d">3D chase</string>
-    <string name="mode_2d">2D top-down</string>
-    <string name="mode_free">Free look</string>
+    <string name="gps_off">Off</string>
+    <!-- Distance, then arrival time: "1.3 km · 12:49 PM" under the big time left. -->
+    <string name="trip_sub">%1$s · %2$s</string>
     <string name="routing">Routing…</string>
     <string name="route_failed">No route</string>
     <string name="route_failed_reason">No route · %1$s</string>
     <string name="arrived">Arrived</string>
 
-    <!-- Action row. -->
-    <string name="nav_search">Search</string>
-    <string name="nav_saved">Saved</string>
-    <string name="nav_home">Home</string>
-    <string name="nav_view">View</string>
+    <!-- Round map buttons (bottom-right). -->
+    <string name="view_mode">Switch between 3D and 2D view</string>
     <string name="view_3d">3D</string>
     <string name="view_2d">2D</string>
-    <string name="nav_batmobile">Batmobile</string>
-    <string name="nav_recenter">Recenter</string>
+    <string name="recenter">Recenter on the batmobile</string>
 
-    <!-- Next-turn card: "NEXT: RIGHT TURN (700 M)" over the street name. -->
-    <string name="next_turn">Next: %1$s (%2$s)</string>
+    <!-- Next-turn card: maneuver label over the distance, then the street. -->
     <string name="turn_depart">Depart</string>
     <string name="turn_continue">Continue</string>
-    <string name="turn_left">Left turn</string>
-    <string name="turn_right">Right turn</string>
+    <string name="turn_left">Turn left</string>
+    <string name="turn_right">Turn right</string>
     <string name="turn_slight_left">Slight left</string>
     <string name="turn_slight_right">Slight right</string>
     <string name="turn_sharp_left">Sharp left</string>
