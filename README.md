@@ -42,12 +42,33 @@ For Greece that is `E20_N35.rd5` and `E25_N35.rd5`. The car profile and lookup t
 inside the APK under `app/src/main/assets/brouter/` (`car-vario.brf` and `lookups.dat` from the
 BRouter repository, `misc/profiles2/`). Without those two assets offline routing is disabled.
 
+## Dashboard
+
+The screen is laid out like a Batman GPS: gunmetal bars with yellow-on-dark capitals, the map
+in the band between them.
+
+- **Top banner:** `WHERE TO?` when idle (tap it to open search), or `TO: <destination>` with an
+  `END ROUTE` button while a destination is set. The grey bat sits in the middle; `MAPS` at the
+  right loads or switches the `.mbtiles` file.
+- **Next-turn card** (top-left of the map, while navigating): yellow arrow,
+  `NEXT: RIGHT TURN (700 M)`, then the street name.
+- **Readouts** (bottom): `ROUTING…` / `NO ROUTE` / `ARRIVED`, then `ETA` (arrival time and
+  minutes left), `DIST`, `SPEED` and `MODE` (`3D CHASE`, `2D TOP-DOWN` or `FREE LOOK` once you
+  have panned away).
+- **Action row:** `SEARCH` (dropdown with the keyboard up), `SAVED` (Home / Work, favorites and
+  recents, no keyboard), `HOME` (drive to the Home shortcut, or set it first), `VIEW` (3D / 2D,
+  lit while 3D) and `BATMOBILE` (lit while the camera follows the car; after a pan it turns into
+  the yellow `RECENTER` slab, and tapping it while following resets the zoom and heading).
+
+Every slab is a plain XML shape drawable and every label is the system condensed font in
+capitals: no font files, no image assets, no libraries.
+
 ## Search and favorites
 
-The "Where to?" bar (top left) opens a Google Maps style dropdown: Home and Work shortcuts,
-saved places and recent destinations, filtered as you type. Press the search icon (or the
-keyboard's search key) for online results, or type coordinates as `lat, lon` (works offline).
-Tap any row to route to it.
+`SEARCH`, `SAVED` or the banner open a Google Maps style dropdown under the banner: Home and
+Work shortcuts, saved places and recent destinations, filtered as you type. Press the search
+icon (or the keyboard's search key) for online results, or type coordinates as `lat, lon`
+(works offline). Tap any row to route to it.
 
 - **Home / Work:** tap one while unset (or its Edit) to pick it: search, or use the current
   location. Long-press to remove it.
@@ -56,8 +77,8 @@ Tap any row to route to it.
 - **Recent history:** every destination you pick. The first four show, "More from recent
   history" shows the rest; long-press one to save it or remove it from history.
 
-While a route is active the trip card replaces "Where to?" at the bottom left: time left,
-distance and arrival time. Its ✕ ends the route (so does Back).
+While a route is active the banner shows the destination and the readouts show ETA and
+distance. `END ROUTE` in the banner ends the route (so does Back).
 
 ## Batmobile and pins
 

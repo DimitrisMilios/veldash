@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Speed badge: black disc with a soft top-lit centre, yellow ring. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <gradient android:type="radial" android:centerY="0.35" android:gradientRadius="60dp"
-        android:startColor="@color/bat_raised_top" android:endColor="@color/bat_black" />
-    <stroke android:width="4dp" android:color="@color/bat_yellow" />
-</shape>

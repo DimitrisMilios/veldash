@@ -12,32 +12,65 @@
 
     <string name="notif_channel">Navigation</string>
     <string name="notif_gps">GPS active</string>
-    <string name="speed_kmh">%1$d</string>
-    <string name="speed_unit">km/h</string>
-    <string name="gps_searching">GPS</string>
-    <string name="gps_off">GPS OFF</string>
-    <string name="recenter">Recenter on batmobile</string>
+
+    <!-- Top banner. Rendered in capitals: "WHERE TO?" / "TO: ARKHAM ASYLUM". -->
+    <string name="where_to">Where to?</string>
+    <string name="label_to">To:</string>
+    <string name="dropped_pin">Dropped pin</string>
+    <string name="end_route">End route</string>
+
+    <!-- Trip readouts (bottom status bar). -->
+    <string name="label_eta">ETA:</string>
+    <string name="label_dist">Dist:</string>
+    <string name="label_speed">Speed:</string>
+    <string name="label_mode">Mode:</string>
+    <string name="speed_kmh">%1$d km/h</string>
+    <string name="speed_none">--</string>
+    <string name="gps_off">GPS off</string>
+    <!-- Arrival time, then the time left: "8:36 PM (12 MIN)". -->
+    <string name="eta_value">%1$s (%2$s)</string>
+    <string name="mode_3d">3D chase</string>
+    <string name="mode_2d">2D top-down</string>
+    <string name="mode_free">Free look</string>
+    <string name="routing">Routing…</string>
+    <string name="route_failed">No route</string>
+    <string name="route_failed_reason">No route · %1$s</string>
+    <string name="arrived">Arrived</string>
+
+    <!-- Action row. -->
+    <string name="nav_search">Search</string>
+    <string name="nav_saved">Saved</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_view">View</string>
     <string name="view_3d">3D</string>
     <string name="view_2d">2D</string>
+    <string name="nav_batmobile">Batmobile</string>
+    <string name="nav_recenter">Recenter</string>
 
-    <string name="routing">Routing…</string>
-    <string name="route_summary_sub">%1$s · via %2$s</string>
-    <string name="route_failed">No route</string>
-    <string name="no_position">No GPS position yet</string>
-    <string name="src_mapbox">Mapbox</string>
-    <string name="src_osrm">OSRM</string>
-    <string name="src_brouter">offline</string>
+    <!-- Next-turn card: "NEXT: RIGHT TURN (700 M)" over the street name. -->
+    <string name="next_turn">Next: %1$s (%2$s)</string>
+    <string name="turn_depart">Depart</string>
+    <string name="turn_continue">Continue</string>
+    <string name="turn_left">Left turn</string>
+    <string name="turn_right">Right turn</string>
+    <string name="turn_slight_left">Slight left</string>
+    <string name="turn_slight_right">Slight right</string>
+    <string name="turn_sharp_left">Sharp left</string>
+    <string name="turn_sharp_right">Sharp right</string>
+    <string name="turn_keep_left">Keep left</string>
+    <string name="turn_keep_right">Keep right</string>
+    <string name="turn_exit_left">Exit left</string>
+    <string name="turn_exit_right">Exit right</string>
+    <string name="turn_uturn">U-turn</string>
+    <string name="turn_roundabout">Roundabout</string>
+    <string name="turn_arrive">Arrive</string>
+    <string name="rerouting">Rerouting</string>
     <string name="dist_m">%1$d m</string>
     <string name="dist_km">%1$.1f km</string>
     <string name="dur_min">%1$d min</string>
     <string name="dur_h_min">%1$d h %2$d min</string>
 
-    <string name="trip_sub">%1$s · arrive %2$s</string>
-    <string name="end_route">End route</string>
-    <string name="rerouting">Rerouting</string>
-    <string name="arrived">Arrived</string>
-
-    <string name="where_to">Where to?</string>
+    <!-- Search dropdown. -->
     <string name="search_hint">Search places or lat, lon</string>
     <string name="home">Home</string>
     <string name="work">Work</string>

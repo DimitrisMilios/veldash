@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Engraved separator between trip readouts: a dark line beside a light one, 2dp wide. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:right="1dp">
+        <shape android:shape="rectangle">
+            <size android:width="1dp" />
+            <solid android:color="@color/gun_edge" />
+        </shape>
+    </item>
+    <item android:left="1dp">
+        <shape android:shape="rectangle">
+            <size android:width="1dp" />
+            <solid android:color="@color/gun_divider_light" />
+        </shape>
+    </item>
+</layer-list>

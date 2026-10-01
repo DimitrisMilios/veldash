@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating gunmetal card (next-turn, search dropdown, empty state): the bar's bevel with
+     rounded corners. Opaque: no blending over the map. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="10dp" />
+            <solid android:color="@color/gun_edge" />
+        </shape>
+    </item>
+    <item android:left="1dp" android:top="1dp" android:right="1dp" android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="9dp" />
+            <solid android:color="@color/gun_highlight" />
+        </shape>
+    </item>
+    <item android:left="1dp" android:top="2dp" android:right="1dp" android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="9dp" />
+            <gradient
+                android:angle="270"
+                android:startColor="@color/gun_top"
+                android:centerColor="@color/gun_mid"
+                android:endColor="@color/gun_bottom" />
+        </shape>
+    </item>
+</layer-list>

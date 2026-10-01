@@ -95,10 +95,11 @@ class SearchPanel(
     }
 
     /**
-     * Opens the dropdown. The keyboard is not raised: in a car the saved and recent rows are the
-     * common case, and the IME would cover them. Tapping the field brings it up.
+     * Opens the dropdown. By default the keyboard is not raised: in a car the saved and recent
+     * rows are the common case, and the IME would cover them (SAVED, or tapping the banner).
+     * [focus] is the SEARCH button: the driver means to type, so the field gets the keyboard.
      */
-    fun open(initialQuery: String? = null) {
+    fun open(initialQuery: String? = null, focus: Boolean = false) {
         fitWidth()
         pickingFor = null
         recentsExpanded = false
@@ -108,7 +109,23 @@ class SearchPanel(
         b.editSearch.setText(initialQuery ?: "") // the watcher fills the rows
         b.editSearch.setSelection(b.editSearch.length())
         b.scrollPlaces.scrollTo(0, 0)
-        if (initialQuery != null) search(initialQuery)
+        if (initialQuery != null) {
+            search(initialQuery)
+        } else if (focus) {
+            b.editSearch.requestFocus()
+            imm().showSoftInput(b.editSearch, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    /** HOME button: drive to the Home shortcut, or open the dropdown in pick mode to set it. */
+    fun driveHome() {
+        val home = prefs.home
+        if (home != null) {
+            go(home)
+        } else {
+            if (!isOpen) open()
+            startPicking(Kind.HOME)
+        }
     }
 
     fun close() {

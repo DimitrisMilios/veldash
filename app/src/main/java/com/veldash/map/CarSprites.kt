@@ -169,6 +169,35 @@ class CarSprites(private val context: Context) {
     private fun cropAroundCentre(b: Bitmap): Bitmap {
         val w = b.width
         val h = b.height
+        val r = contentBounds(b) ?: return b
+        val cx = w / 2
+        val cy = h / 2
+        val hw = maxOf(cx - r[0], r[2] - cx) + 1
+        val hh = maxOf(cy - r[1], r[3] - cy) + 1
+        val left = (cx - hw).coerceAtLeast(0)
+        val top = (cy - hh).coerceAtLeast(0)
+        return Bitmap.createBitmap(b, left, top, (2 * hw).coerceAtMost(w - left), (2 * hh).coerceAtMost(h - top))
+    }
+
+    private var icon: Bitmap? = null
+
+    /**
+     * The chase render trimmed tight to the car (no ground-point margins, which at icon size
+     * would shrink it to a smudge): the picture on the BATMOBILE button. Built once.
+     */
+    fun icon(): Bitmap = icon ?: tight(tiltFrame(TILT_STEPS - 1)).also { icon = it }
+
+    private fun tight(b: Bitmap): Bitmap {
+        val r = contentBounds(b) ?: return b
+        val out = Bitmap.createBitmap(b, r[0], r[1], r[2] - r[0] + 1, r[3] - r[1] + 1)
+        out.density = b.density
+        return out
+    }
+
+    /** Bounding box [minX, minY, maxX, maxY] of the visible pixels, or null if there are none. */
+    private fun contentBounds(b: Bitmap): IntArray? {
+        val w = b.width
+        val h = b.height
         val row = IntArray(w)
         var minX = w
         var maxX = -1
@@ -185,14 +214,7 @@ class CarSprites(private val context: Context) {
                 }
             }
         }
-        if (maxX < 0) return b
-        val cx = w / 2
-        val cy = h / 2
-        val hw = maxOf(cx - minX, maxX - cx) + 1
-        val hh = maxOf(cy - minY, maxY - cy) + 1
-        val left = (cx - hw).coerceAtLeast(0)
-        val top = (cy - hh).coerceAtLeast(0)
-        return Bitmap.createBitmap(b, left, top, (2 * hw).coerceAtMost(w - left), (2 * hh).coerceAtMost(h - top))
+        return if (maxX < 0) null else intArrayOf(minX, minY, maxX, maxY)
     }
 
     /** On-screen dp per metre of car: [DP_PER_M_2D] flat, growing to [DP_PER_M_3D] at full tilt. */

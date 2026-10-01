@@ -4,11 +4,6 @@
     <color name="bat_black">#000000</color>
     <color name="bat_surface">#121212</color>
     <color name="bat_surface_high">#1E1E1E</color>
-    <color name="bat_outline">#3A3A3A</color>
-    <!-- Lit-from-above gradient on dark raised surfaces (buttons, cards). -->
-    <color name="bat_raised_top">#2A2A2E</color>
-    <color name="bat_raised_bottom">#0E0E10</color>
-    <color name="bat_badge_top">#34343A</color>
     <color name="bat_yellow">#FFE600</color>
     <!-- Top / bottom of the lit-from-above gradient on yellow surfaces. -->
     <color name="bat_yellow_light">#FFF36B</color>
@@ -16,9 +11,25 @@
     <color name="bat_yellow_dim">#B3A100</color>
     <color name="bat_text">#FFFFFF</color>
     <color name="bat_text_dim">#9E9E9E</color>
-    <color name="bat_danger">#FF3B30</color>
     <!-- Dims the map behind the open search dropdown. -->
     <color name="bat_scrim">#99000000</color>
+
+    <!-- Gunmetal dashboard chrome: every bar, card and button is a top-lit charcoal slab with a
+         black outer edge and a one-pixel lighter bevel along its top (see bg_bar / bg_panel). -->
+    <color name="gun_edge">#000000</color>
+    <color name="gun_highlight">#5C6069</color>
+    <color name="gun_top">#3E424A</color>
+    <color name="gun_mid">#25282E</color>
+    <color name="gun_bottom">#15171B</color>
+    <color name="gun_pressed">#0C0D10</color>
+    <!-- Recessed well (search field) inside a slab. -->
+    <color name="gun_well">#0A0B0E</color>
+    <!-- Engraved divider between readouts: a dark line next to a light one. -->
+    <color name="gun_divider_light">#4A4E57</color>
+    <!-- Button icons and labels when not lit. -->
+    <color name="gun_text">#D4D7DC</color>
+    <!-- The bat emblem engraved in the top banner. -->
+    <color name="gun_emblem">#7C808A</color>
 
     <!-- Map overlay colors (route line, casing). -->
     <color name="route_line">#FFE600</color>

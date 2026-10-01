@@ -71,6 +71,9 @@ class MainActivity : Activity(), LocationBus.Listener {
     /** Destination requested before a style was loaded (geo: intent at cold start). */
     private var pendingDestination: LatLng? = null
 
+    /** Name of the current destination for the banner (a searched place); null for a dropped pin. */
+    private var destinationName: String? = null
+
     private var map: MapLibreMap? = null
     private var current: MapFile? = null
 
@@ -236,18 +239,27 @@ class MainActivity : Activity(), LocationBus.Listener {
             })
             // Long-press anywhere = "take me there".
             m.addOnMapLongClickListener { p ->
+                destinationName = null
                 setDestination(p)
                 true
             }
             loadSavedMap()
         }
 
+        // Top banner.
+        binding.btnDestination.setOnClickListener { toggleSearch(focus = false) }
+        binding.btnEndRoute.setOnClickListener { clearRoute() }
         binding.btnLoadMap.setOnClickListener { pickMap() }
         binding.btnEmptyLoadMap.setOnClickListener { pickMap() }
-        binding.btnEndRoute.setOnClickListener { clearRoute() }
-        binding.btnRecenter.setImageBitmap(sprites.topDown())
-        binding.btnRecenter.setOnClickListener { setFollow(true) }
-        binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
+
+        // Action row.
+        binding.btnSearch.setOnClickListener { toggleSearch(focus = true) }
+        binding.btnSaved.setOnClickListener { toggleSearch(focus = false) }
+        binding.btnHome.setOnClickListener { searchPanel.driveHome() }
+        // The chase render, trimmed tight: the most batmobile-shaped frame at icon size.
+        binding.imgRecenter.setImageBitmap(sprites.icon())
+        binding.btnRecenter.setOnClickListener { recenter() }
+        updateRecenterButton()
 
         view3d = prefs.view3d
         viewBlend = if (view3d) 1f else 0f
@@ -264,6 +276,28 @@ class MainActivity : Activity(), LocationBus.Listener {
         handleGeoIntent(intent)
     }
 
+    /** SEARCH / SAVED / the banner: open the dropdown, or close it if it is already up. */
+    private fun toggleSearch(focus: Boolean) {
+        if (searchPanel.isOpen) searchPanel.close() else searchPanel.open(focus = focus)
+    }
+
+    /**
+     * BATMOBILE button. Panned away: follow again. Already following: snap the zoom and heading
+     * back to the navigation view (undoes a pinch).
+     */
+    private fun recenter() {
+        if (!follow) {
+            setFollow(true)
+            return
+        }
+        if (motion.hasPosition) {
+            snapCameraBearing()
+            followCamera(motion.lat, motion.lon, camBearing, animate = true, forceZoom = true)
+        } else {
+            LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+        }
+    }
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         handleGeoIntent(intent)
@@ -277,7 +311,10 @@ class MainActivity : Activity(), LocationBus.Listener {
         if (p != null) goTo(p) else searchPanel.open(t.query)
     }
 
-    private fun goTo(p: Place) = setDestination(LatLng(p.lat, p.lon))
+    private fun goTo(p: Place) {
+        destinationName = p.name
+        setDestination(LatLng(p.lat, p.lon))
+    }
 
     // ---- Lifecycle ----
 
@@ -614,7 +651,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun setFollow(on: Boolean) {
         if (follow == on) return
         follow = on
-        binding.btnRecenter.visibility = if (on) View.GONE else View.VISIBLE
+        updateRecenterButton()
         if (on) {
             if (motion.hasPosition) {
                 snapCameraBearing()
@@ -627,8 +664,23 @@ class MainActivity : Activity(), LocationBus.Listener {
         applyMotion()
     }
 
+    /** VIEW button: the glyph is the current mode, and the slab is lit while 3D is on. */
     private fun updateViewModeButton() {
-        binding.btnViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
+        binding.txtViewMode.setText(if (view3d) R.string.view_3d else R.string.view_2d)
+        binding.btnViewMode.isActivated = view3d
+        hud.showMode(view3d, follow)
+    }
+
+    /**
+     * BATMOBILE button: lit (activated) while the camera follows the car; once the driver has
+     * panned away it becomes the yellow accent slab (selected) reading RECENTER, the one thing
+     * to find at a glance.
+     */
+    private fun updateRecenterButton() {
+        binding.btnRecenter.isActivated = follow
+        binding.btnRecenter.isSelected = !follow
+        binding.txtRecenter.setText(if (follow) R.string.nav_batmobile else R.string.nav_recenter)
+        hud.showMode(view3d, follow)
     }
 
     /**
@@ -700,6 +752,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         motion.setNavigator(null)
         routeOverlay.setDestination(p)
         routeOverlay.setRoute(null)
+        hud.showDestination(destinationName ?: getString(R.string.dropped_pin))
 
         // Start point: live fix if we have one, else the camera target (handy on an emulator without GPS).
         val fix = LocationBus.last
@@ -737,6 +790,7 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     private fun clearRoute() {
         destination = null
+        destinationName = null
         route = null
         navigator = null
         motion.setNavigator(null)

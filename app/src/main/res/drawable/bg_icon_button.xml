@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Borderless round icon button: invisible until pressed. -->
+<!-- Borderless round icon button: invisible until pressed or rotary-focused. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/bat_surface_high" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
         <shape android:shape="oval">
             <solid android:color="@color/bat_surface_high" />
         </shape>

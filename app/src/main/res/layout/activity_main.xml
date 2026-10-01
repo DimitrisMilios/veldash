@@ -1,401 +1,601 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The MapView (a SurfaceView) is added programmatically at index 0 so every overlay below is
-    composited above it. Overlays are a handful of opaque floating cards and round buttons,
-    each at most two levels deep: nothing here is measured more than once per change.
+    Dashboard layout, Batman-GPS style: a gunmetal banner on top (destination), the map in the
+    middle band, and two gunmetal bars at the bottom (trip readouts, then the action buttons).
+
+    The MapView (a SurfaceView) is added programmatically at index 0 of map_container, so it
+    renders only the middle band: the bars are opaque and never composite over it. Overlays in
+    the band are a handful of opaque cards, each at most two levels deep.
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/map_container"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bat_black">
+    android:background="@color/bat_black"
+    android:orientation="vertical">
 
-    <!-- Batmobile as a screen overlay while the camera follows: the camera's target point is a
-         fixed screen position, so drawing the car here is jitter-free (a map-layer marker lags
-         the camera by a frame). The bitmap is the 3D render for the current tilt and heading
-         (CarSprites); bitmap, position and rotation are set in code. Hidden when panned. -->
-    <ImageView
-        android:id="@+id/img_car"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:contentDescription="@null"
-        android:visibility="gone" />
-
-    <!-- The neighbouring render, faded in on top of img_car so the car morphs between frames
-         through bends and the 2D/3D tilt instead of popping. -->
-    <ImageView
-        android:id="@+id/img_car_blend"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:contentDescription="@null"
-        android:visibility="gone" />
-
-    <!-- ===== Empty state: shown until a map is loaded ===== -->
+    <!-- ===== Top banner: WHERE TO? (idle) or TO: destination + END ROUTE; bat emblem; MAPS ===== -->
     <LinearLayout
-        android:id="@+id/panel_empty"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:background="@drawable/bg_card"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingStart="@dimen/gap_xl"
-        android:paddingEnd="@dimen/gap_xl"
-        android:paddingTop="@dimen/gap_xl"
-        android:paddingBottom="@dimen/gap_xl">
-
-        <ImageView
-            android:layout_width="@dimen/empty_logo_width"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@null"
-            android:src="@drawable/bat_logo" />
-
-        <TextView
-            android:id="@+id/txt_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/gap_large"
-            android:fontFamily="sans-serif-condensed"
-            android:gravity="center"
-            android:text="@string/no_map_loaded"
-            android:textColor="@color/bat_text"
-            android:textSize="@dimen/text_body" />
-
-        <Button
-            android:id="@+id/btn_empty_load_map"
-            style="@style/Widget.Veldash.Button.Primary"
-            android:layout_width="wrap_content"
-            android:layout_height="@dimen/touch_target"
-            android:layout_marginTop="@dimen/gap_large"
-            android:minWidth="@dimen/btn_primary_min_width"
-            android:text="@string/load_map"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- ===== Next-turn card (top-left, while navigating) ===== -->
-    <LinearLayout
-        android:id="@+id/card_maneuver"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="@dimen/gap_large"
-        android:layout_marginTop="@dimen/gap_large"
-        android:layout_marginEnd="@dimen/hud_speed_reserve"
-        android:background="@drawable/bg_card_maneuver"
-        android:gravity="center_vertical"
-        android:minWidth="@dimen/card_maneuver_min_width"
-        android:orientation="horizontal"
-        android:paddingStart="@dimen/gap_large"
-        android:paddingEnd="@dimen/gap_xl"
-        android:paddingTop="@dimen/gap_medium"
-        android:paddingBottom="@dimen/gap_medium"
-        android:visibility="gone">
-
-        <!-- Turn arrows are yellow vectors: tinted black on the yellow card (the logo is not). -->
-        <ImageView
-            android:id="@+id/img_maneuver"
-            android:layout_width="@dimen/hud_icon"
-            android:layout_height="@dimen/hud_icon"
-            android:contentDescription="@null"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_turn_straight"
-            android:tint="@color/bat_black" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/gap_medium"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/txt_turn_distance"
-                style="@style/Widget.Veldash.CardText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="@dimen/text_turn"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/txt_turn_street"
-                style="@style/Widget.Veldash.CardText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:singleLine="true"
-                android:textSize="@dimen/text_body" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- ===== Speed badge (top-right, always visible) ===== -->
-    <LinearLayout
-        android:id="@+id/speed_badge"
-        android:layout_width="@dimen/speed_badge"
-        android:layout_height="@dimen/speed_badge"
-        android:layout_gravity="top|end"
-        android:layout_margin="@dimen/gap_large"
-        android:background="@drawable/bg_speed"
-        android:gravity="center"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/txt_speed"
-            style="@style/Widget.Veldash.Hud"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/gps_searching"
-            android:textColor="@color/bat_text_dim"
-            android:textSize="@dimen/text_speed"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/txt_speed_unit"
-            style="@style/Widget.Veldash.Hud"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/speed_unit"
-            android:textColor="@color/bat_text_dim"
-            android:textSize="@dimen/text_caption"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- ===== Top-left search bar (idle). While a route is up the next-turn card takes this spot. ===== -->
-    <Button
-        android:id="@+id/btn_search"
-        style="@style/Widget.Veldash.Button"
-        android:layout_width="@dimen/search_width"
-        android:layout_height="@dimen/touch_target"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="@dimen/gap_large"
-        android:layout_marginTop="@dimen/gap_large"
-        android:layout_marginEnd="@dimen/hud_speed_reserve"
-        android:background="@drawable/bg_pill"
-        android:drawableStart="@drawable/ic_search"
-        android:drawablePadding="@dimen/gap_medium"
-        android:gravity="start|center_vertical"
-        android:paddingStart="@dimen/gap_xl"
-        android:paddingEnd="@dimen/gap_xl"
-        android:text="@string/where_to"
-        android:textColor="@color/bat_text_dim" />
-
-    <!-- ===== Bottom-left trip card (routing / navigating) ===== -->
-    <LinearLayout
-        android:id="@+id/card_trip"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="@dimen/gap_large"
-        android:layout_marginEnd="@dimen/actions_reserve"
-        android:layout_marginBottom="@dimen/bottom_margin"
-        android:background="@drawable/bg_card"
-        android:gravity="center_vertical"
-        android:minWidth="@dimen/card_trip_min_width"
-        android:orientation="horizontal"
-        android:paddingStart="@dimen/gap_xl"
-        android:paddingEnd="@dimen/gap_medium"
-        android:paddingTop="@dimen/gap_medium"
-        android:paddingBottom="@dimen/gap_medium"
-        android:visibility="gone">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/gap_large"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/txt_trip_main"
-                style="@style/Widget.Veldash.Hud"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@null"
-                android:ellipsize="end"
-                android:singleLine="true"
-                android:textSize="@dimen/text_trip"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/txt_trip_sub"
-                style="@style/Widget.Veldash.Hud"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:background="@null"
-                android:ellipsize="end"
-                android:singleLine="true"
-                android:textColor="@color/bat_text_dim"
-                android:textSize="@dimen/text_caption_large" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/btn_end_route"
-            android:layout_width="@dimen/touch_target"
-            android:layout_height="@dimen/touch_target"
-            android:background="@drawable/bg_fab_danger"
-            android:contentDescription="@string/end_route"
-            android:padding="@dimen/gap_large"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_close"
-            android:tint="@color/bat_text" />
-    </LinearLayout>
-
-    <!-- ===== Bottom-right: round map actions. Recenter appears only after the driver pans. ===== -->
-    <LinearLayout
-        android:id="@+id/col_actions"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="@dimen/gap_large"
-        android:layout_marginBottom="@dimen/bottom_margin"
-        android:gravity="center_horizontal"
-        android:orientation="vertical">
-
-        <ImageButton
-            android:id="@+id/btn_load_map"
-            android:layout_width="@dimen/touch_target"
-            android:layout_height="@dimen/touch_target"
-            android:background="@drawable/bg_fab"
-            android:contentDescription="@string/load_map"
-            android:padding="@dimen/gap_large"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_layers" />
-
-        <!-- 3D chase view / 2D top-down toggle. -->
-        <Button
-            android:id="@+id/btn_view_mode"
-            style="@style/Widget.Veldash.Button"
-            android:layout_width="@dimen/touch_target"
-            android:layout_height="@dimen/touch_target"
-            android:layout_marginTop="@dimen/gap_medium"
-            android:background="@drawable/bg_fab"
-            android:padding="0dp"
-            android:text="@string/view_3d"
-            android:textStyle="bold" />
-
-        <!-- Bitmap (the 2D batmobile) set in code. -->
-        <ImageButton
-            android:id="@+id/btn_recenter"
-            android:layout_width="@dimen/touch_target_large"
-            android:layout_height="@dimen/touch_target_large"
-            android:layout_marginTop="@dimen/gap_medium"
-            android:background="@drawable/bg_fab_accent"
-            android:contentDescription="@string/recenter"
-            android:padding="@dimen/gap_medium"
-            android:scaleType="fitCenter"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- OSM attribution is a licence requirement for OpenStreetMap-derived tiles.
-         Below the search panel: that covers the map, so the credit goes with it. -->
-    <TextView
-        android:id="@+id/txt_attribution"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="@dimen/gap_large"
-        android:padding="2dp"
-        android:text="@string/attribution_osm"
-        android:textColor="@color/bat_text_dim"
-        android:textSize="10sp" />
-
-    <!-- ===== Search dropdown (Google Maps style): GONE until opened =====
-         A scrim dims the map and closes the dropdown on tap; the card sits where the search
-         bar was and grows down: field, then Home / Work / saved / recent rows or results. -->
-    <View
-        android:id="@+id/scrim_search"
+        android:id="@+id/bar_top"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/bat_scrim"
-        android:clickable="true"
-        android:contentDescription="@string/close"
-        android:visibility="gone" />
+        android:layout_height="@dimen/bar_top"
+        android:background="@drawable/bg_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/gap"
+        android:paddingEnd="@dimen/gap">
 
-    <LinearLayout
-        android:id="@+id/panel_search"
-        android:layout_width="@dimen/search_panel_width"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="@dimen/gap_large"
-        android:layout_marginTop="@dimen/gap_large"
-        android:layout_marginBottom="@dimen/gap_large"
-        android:background="@drawable/bg_search_card"
-        android:clickable="true"
-        android:focusable="true"
-        android:orientation="vertical"
-        android:visibility="gone">
-
+        <!-- Left half: the destination line. Tapping it opens the search dropdown. -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/touch_target"
+            android:id="@+id/btn_destination"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/bg_banner_item"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="@dimen/gap"
             android:paddingEnd="@dimen/gap">
 
-            <ImageButton
-                android:id="@+id/btn_search_close"
-                android:layout_width="@dimen/icon_button"
-                android:layout_height="@dimen/icon_button"
-                android:background="@drawable/bg_icon_button"
-                android:contentDescription="@string/close"
-                android:padding="@dimen/gap_large"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_back" />
-
-            <EditText
-                android:id="@+id/edit_search"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="@dimen/gap"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="@string/search_hint"
-                android:imeOptions="actionSearch|flagNoExtractUi"
-                android:importantForAutofill="no"
-                android:inputType="text"
-                android:singleLine="true"
-                android:textColor="@color/bat_text"
-                android:textColorHint="@color/bat_text_dim"
-                android:textCursorDrawable="@null"
-                android:textSize="@dimen/text_body" />
-
-            <ImageButton
-                android:id="@+id/btn_search_go"
-                android:layout_width="@dimen/icon_button"
-                android:layout_height="@dimen/icon_button"
-                android:background="@drawable/bg_icon_button"
-                android:contentDescription="@string/search"
-                android:padding="@dimen/gap_large"
+            <ImageView
+                android:id="@+id/img_search_hint"
+                android:layout_width="@dimen/bar_icon"
+                android:layout_height="@dimen/bar_icon"
+                android:layout_marginEnd="@dimen/gap_medium"
+                android:contentDescription="@null"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_search" />
+
+            <TextView
+                android:id="@+id/txt_dest_label"
+                style="@style/Widget.Veldash.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/where_to"
+                android:textSize="@dimen/text_bar" />
+
+            <TextView
+                android:id="@+id/txt_dest_name"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textSize="@dimen/text_bar"
+                android:visibility="gone" />
+
+            <!-- END ROUTE: shown while a destination is set. -->
+            <LinearLayout
+                android:id="@+id/btn_end_route"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/bar_button"
+                android:layout_marginStart="@dimen/gap"
+                android:background="@drawable/bg_nav_button"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingStart="@dimen/gap_medium"
+                android:paddingEnd="@dimen/gap_medium"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="@dimen/bar_icon_small"
+                    android:layout_height="@dimen/bar_icon_small"
+                    android:layout_marginEnd="@dimen/gap"
+                    android:contentDescription="@null"
+                    android:duplicateParentState="true"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_close"
+                    android:tint="@color/nav_fg" />
+
+                <TextView
+                    style="@style/Widget.Veldash.NavLabel"
+                    android:text="@string/end_route" />
+            </LinearLayout>
         </LinearLayout>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/bat_outline" />
+        <!-- Centre emblem: the bat, engraved grey. The halves either side have equal weight,
+             so it stays centred whatever the destination text does. -->
+        <ImageView
+            android:id="@+id/img_emblem"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/bar_emblem"
+            android:layout_marginStart="@dimen/gap_large"
+            android:layout_marginEnd="@dimen/gap_large"
+            android:adjustViewBounds="true"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_bat"
+            android:tint="@color/gun_emblem" />
 
-        <!-- A dozen rows at most: a plain LinearLayout (rows recycled by index in code) wraps its
-             content, which a ListView cannot; the ScrollView only scrolls when it hits the bottom. -->
-        <ScrollView
-            android:id="@+id/scroll_places"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:overScrollMode="never"
-            android:scrollbars="none">
+        <!-- Right half: MAPS (load / switch map file) at the far end. -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical|end"
+            android:orientation="horizontal">
 
-            <LinearLayout
-                android:id="@+id/list_places"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="@dimen/gap"
-                android:paddingBottom="@dimen/gap" />
-        </ScrollView>
+            <ImageButton
+                android:id="@+id/btn_load_map"
+                android:layout_width="@dimen/bar_button_wide"
+                android:layout_height="@dimen/bar_button"
+                android:background="@drawable/bg_nav_button"
+                android:contentDescription="@string/load_map"
+                android:padding="@dimen/gap_medium"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_layers"
+                android:tint="@color/nav_fg" />
+        </LinearLayout>
     </LinearLayout>
 
-</FrameLayout>
+    <!-- ===== Map band: the MapView goes in at index 0 (code); everything below overlays it ===== -->
+    <FrameLayout
+        android:id="@+id/map_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Batmobile as a screen overlay while the camera follows: the camera target is a
+             fixed screen position, so drawing the car here is jitter-free (a map-layer marker
+             lags the camera by a frame). The bitmap is the 3D render for the current tilt and
+             heading (CarSprites); bitmap, position and rotation are set in code. Hidden when
+             panned. -->
+        <ImageView
+            android:id="@+id/img_car"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
+        <!-- The neighbouring render, faded in on top of img_car so the car morphs between frames
+             through bends and the 2D/3D tilt instead of popping. -->
+        <ImageView
+            android:id="@+id/img_car_blend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
+        <!-- ===== Empty state: shown until a map is loaded ===== -->
+        <LinearLayout
+            android:id="@+id/panel_empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_panel"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingStart="@dimen/gap_xl"
+            android:paddingEnd="@dimen/gap_xl"
+            android:paddingTop="@dimen/gap_xl"
+            android:paddingBottom="@dimen/gap_xl">
+
+            <ImageView
+                android:layout_width="@dimen/empty_logo_width"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null"
+                android:src="@drawable/bat_logo" />
+
+            <TextView
+                android:id="@+id/txt_status"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/gap_large"
+                android:gravity="center"
+                android:text="@string/no_map_loaded"
+                android:textSize="@dimen/text_body" />
+
+            <Button
+                android:id="@+id/btn_empty_load_map"
+                style="@style/Widget.Veldash.Button.Primary"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/touch_target"
+                android:layout_marginTop="@dimen/gap_large"
+                android:minWidth="@dimen/btn_primary_min_width"
+                android:text="@string/load_map"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- ===== Next-turn card (top-left, while navigating): yellow arrow, then
+             "NEXT: RIGHT TURN (700 M)" over the street name ===== -->
+        <LinearLayout
+            android:id="@+id/card_maneuver"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="@dimen/gap_large"
+            android:background="@drawable/bg_panel"
+            android:gravity="center_vertical"
+            android:minWidth="@dimen/card_maneuver_min_width"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/gap_large"
+            android:paddingEnd="@dimen/gap_xl"
+            android:paddingTop="@dimen/gap_medium"
+            android:paddingBottom="@dimen/gap_medium"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/img_maneuver"
+                android:layout_width="@dimen/hud_icon"
+                android:layout_height="@dimen/hud_icon"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_turn_straight" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap_large"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/txt_turn"
+                    style="@style/Widget.Veldash.Label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="@dimen/text_turn" />
+
+                <TextView
+                    android:id="@+id/txt_turn_street"
+                    style="@style/Widget.Veldash.Value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:singleLine="true"
+                    android:textSize="@dimen/text_street" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- OSM attribution is a licence requirement for OpenStreetMap-derived tiles.
+             Below the search panel: that covers the map, so the credit goes with it. -->
+        <TextView
+            android:id="@+id/txt_attribution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="@dimen/gap_large"
+            android:padding="2dp"
+            android:text="@string/attribution_osm"
+            android:textColor="@color/bat_text_dim"
+            android:textSize="10sp" />
+
+        <!-- ===== Search dropdown: GONE until opened =====
+             A scrim dims the map and closes the dropdown on tap; the card hangs below the banner
+             on the left and grows down: field, then Home / Work / saved / recent rows or results. -->
+        <View
+            android:id="@+id/scrim_search"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/bat_scrim"
+            android:clickable="true"
+            android:contentDescription="@string/close"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/panel_search"
+            android:layout_width="@dimen/search_panel_width"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="@dimen/gap_large"
+            android:layout_marginTop="@dimen/gap"
+            android:layout_marginBottom="@dimen/gap_large"
+            android:background="@drawable/bg_panel"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/touch_target"
+                android:layout_marginStart="@dimen/gap"
+                android:layout_marginTop="@dimen/gap"
+                android:layout_marginEnd="@dimen/gap"
+                android:background="@drawable/bg_field"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
+
+                <ImageButton
+                    android:id="@+id/btn_search_close"
+                    android:layout_width="@dimen/icon_button"
+                    android:layout_height="@dimen/icon_button"
+                    android:background="@drawable/bg_icon_button"
+                    android:contentDescription="@string/close"
+                    android:padding="@dimen/gap_large"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_back" />
+
+                <EditText
+                    android:id="@+id/edit_search"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="@dimen/gap"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:fontFamily="sans-serif-condensed"
+                    android:hint="@string/search_hint"
+                    android:imeOptions="actionSearch|flagNoExtractUi"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:singleLine="true"
+                    android:textColor="@color/bat_text"
+                    android:textColorHint="@color/bat_text_dim"
+                    android:textCursorDrawable="@null"
+                    android:textSize="@dimen/text_body" />
+
+                <ImageButton
+                    android:id="@+id/btn_search_go"
+                    android:layout_width="@dimen/icon_button"
+                    android:layout_height="@dimen/icon_button"
+                    android:background="@drawable/bg_icon_button"
+                    android:contentDescription="@string/search"
+                    android:padding="@dimen/gap_large"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_search" />
+            </LinearLayout>
+
+            <!-- A dozen rows at most: a plain LinearLayout (rows recycled by index in code) wraps
+                 its content, which a ListView cannot; the ScrollView only scrolls when it hits
+                 the bottom. -->
+            <ScrollView
+                android:id="@+id/scroll_places"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/list_places"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="@dimen/gap"
+                    android:paddingBottom="@dimen/gap" />
+            </ScrollView>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- ===== Trip readouts: STATUS | ETA | DIST | SPEED | MODE, engraved dividers between
+         whichever are showing (LinearLayout skips GONE children) ===== -->
+    <LinearLayout
+        android:id="@+id/bar_status"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bar_status"
+        android:background="@drawable/bg_bar"
+        android:divider="@drawable/divider_status"
+        android:dividerPadding="@dimen/gap_medium"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/gap"
+        android:paddingEnd="@dimen/gap"
+        android:showDividers="middle">
+
+        <!-- ROUTING… / NO ROUTE / ARRIVED: takes the place of ETA and DIST. -->
+        <TextView
+            android:id="@+id/txt_trip_status"
+            style="@style/Widget.Veldash.Value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="2"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:singleLine="true"
+            android:textSize="@dimen/text_status"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/seg_eta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/Widget.Veldash.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_eta"
+                android:textSize="@dimen/text_status" />
+
+            <TextView
+                android:id="@+id/txt_eta"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap"
+                android:singleLine="true"
+                android:textSize="@dimen/text_status" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/seg_dist"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/Widget.Veldash.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_dist"
+                android:textSize="@dimen/text_status" />
+
+            <TextView
+                android:id="@+id/txt_dist"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap"
+                android:singleLine="true"
+                android:textSize="@dimen/text_status" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/seg_speed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/Widget.Veldash.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_speed"
+                android:textSize="@dimen/text_status" />
+
+            <!-- Starts on the dim dash placeholder until the first fix. -->
+            <TextView
+                android:id="@+id/txt_speed"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap"
+                android:singleLine="true"
+                android:text="@string/speed_none"
+                android:textColor="@color/bat_text_dim"
+                android:textSize="@dimen/text_status" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/seg_mode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/Widget.Veldash.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_mode"
+                android:textSize="@dimen/text_status" />
+
+            <TextView
+                android:id="@+id/txt_mode"
+                style="@style/Widget.Veldash.Value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap"
+                android:singleLine="true"
+                android:text="@string/mode_3d"
+                android:textSize="@dimen/text_status" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ===== Action row: SEARCH | SAVED | HOME | VIEW | BATMOBILE ===== -->
+    <LinearLayout
+        android:id="@+id/bar_nav"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bar_nav"
+        android:background="@drawable/bg_bar"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/gap"
+        android:paddingTop="@dimen/gap_nav"
+        android:paddingEnd="@dimen/gap"
+        android:paddingBottom="@dimen/gap_nav">
+
+        <!-- Opens the dropdown with the keyboard up. -->
+        <LinearLayout
+            android:id="@+id/btn_search"
+            style="@style/Widget.Veldash.NavButton">
+
+            <ImageView
+                style="@style/Widget.Veldash.NavIcon"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_search" />
+
+            <TextView
+                style="@style/Widget.Veldash.NavLabel"
+                android:text="@string/nav_search" />
+        </LinearLayout>
+
+        <!-- Opens the dropdown on Home / Work, favorites and recents, no keyboard. -->
+        <LinearLayout
+            android:id="@+id/btn_saved"
+            style="@style/Widget.Veldash.NavButton">
+
+            <ImageView
+                style="@style/Widget.Veldash.NavIcon"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_star" />
+
+            <TextView
+                style="@style/Widget.Veldash.NavLabel"
+                android:text="@string/nav_saved" />
+        </LinearLayout>
+
+        <!-- Drive to the Home shortcut (or set it first). -->
+        <LinearLayout
+            android:id="@+id/btn_home"
+            style="@style/Widget.Veldash.NavButton">
+
+            <ImageView
+                style="@style/Widget.Veldash.NavIcon"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_home" />
+
+            <TextView
+                style="@style/Widget.Veldash.NavLabel"
+                android:text="@string/nav_home" />
+        </LinearLayout>
+
+        <!-- 3D chase view / 2D top-down toggle: lit while 3D. The glyph is the mode itself. -->
+        <LinearLayout
+            android:id="@+id/btn_view_mode"
+            style="@style/Widget.Veldash.NavButton">
+
+            <TextView
+                android:id="@+id/txt_view_mode"
+                style="@style/Widget.Veldash.NavLabel"
+                android:layout_height="@dimen/nav_icon"
+                android:gravity="center"
+                android:text="@string/view_3d"
+                android:textSize="@dimen/text_nav_glyph" />
+
+            <TextView
+                style="@style/Widget.Veldash.NavLabel"
+                android:text="@string/nav_view" />
+        </LinearLayout>
+
+        <!-- Recenter on the batmobile: lit while following, the yellow accent slab once the
+             driver has panned away. Icon is the chase render of the car, set in code. -->
+        <LinearLayout
+            android:id="@+id/btn_recenter"
+            style="@style/Widget.Veldash.NavButton">
+
+            <ImageView
+                android:id="@+id/img_recenter"
+                android:layout_width="@dimen/nav_icon_car_w"
+                android:layout_height="@dimen/nav_icon_car_h"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/txt_recenter"
+                style="@style/Widget.Veldash.NavLabel"
+                android:text="@string/nav_batmobile" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>
