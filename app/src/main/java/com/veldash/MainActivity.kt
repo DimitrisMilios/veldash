@@ -296,13 +296,10 @@ class MainActivity : Activity(), LocationBus.Listener {
             marker.setShown(false)
             showCarOverlay(true)
         } else {
-            // Panned: the map-layer marker, using the frame for the heading relative to the view.
-            // Its rotation is map-aligned, so add the camera bearing back for the screen angle.
-            // The layer scales it by zoom.
-            val camB = map?.cameraPosition?.bearing?.toFloat() ?: 0f
-            sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend, motion.bearing - camB, pick)
-            pick.bitmap?.let { marker.setArt(it) }
-            marker.update(motion.lat, motion.lon, camB + pick.rotation)
+            // Panned (free camera): the map-layer marker with the top-down render lying flat on
+            // the road, rotated to the car's heading. The layer handles perspective and zoom.
+            marker.setArt(sprites.topDown())
+            marker.update(motion.lat, motion.lon, motion.bearing)
             marker.setShown(true)
             showCarOverlay(false)
             if (blendChanged) tiltInPlace()

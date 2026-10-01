@@ -16,7 +16,8 @@ import org.maplibre.geojson.Point
  *
  * Deliberately NOT MapLibre's LocationComponent, which adds four layers, a pulsing animation,
  * a compass engine and a stack of classes. This is one GeoJSON source, one symbol layer and one
- * bitmap ([BatArt.car], swapped with the view mode). Updating it is a single setGeoJson() call per second.
+ * bitmap (the top-down render from [CarSprites.topDown]). It is only shown while the camera is
+ * free; in follow mode the car is a screen overlay. Updating it is a single setGeoJson() call.
  *
  * Lives on top of the style, so it must be re-attached every time a new style is set.
  */
@@ -41,16 +42,18 @@ class BatmobileMarker {
             PropertyFactory.iconSize(
                 Expression.interpolate(
                     Expression.exponential(2f), Expression.zoom(),
-                    Expression.stop(12, 0.3f), Expression.stop(15, 0.55f),
-                    Expression.stop(17, 0.85f), Expression.stop(19, 1.2f),
+                    Expression.stop(12, 0.4f), Expression.stop(15, 0.7f),
+                    Expression.stop(17, 1.0f), Expression.stop(19, 1.3f),
                 ),
             ),
             PropertyFactory.iconAllowOverlap(true),
             PropertyFactory.iconIgnorePlacement(true),
-            // Rotate with the map, not the screen, so the car points along the road...
+            // This marker is used when the camera is free (not following). The art is the
+            // top-down render, so it lies flat on the road in map space: rotated with the map,
+            // foreshortened with the streets in 3D, smaller with distance. Correct from any
+            // angle and zoom, unlike an upright chase render seen from the wrong side.
             PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-            // ...but draw it flat to the screen so the pitched 3D view does not squash it.
-            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
+            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
             PropertyFactory.iconRotate(Expression.get(PROP_BEARING)),
             PropertyFactory.visibility(if (fix != null) Property.VISIBLE else Property.NONE),
         )
