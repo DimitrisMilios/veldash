@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Next-turn card: bat-signal yellow with black content, the most legible pair in sunlight. -->
+<!-- Next-turn card: bat-signal yellow, lit from above, black content (most legible pair in sunlight). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <corners android:radius="24dp" />
-    <solid android:color="@color/bat_yellow" />
+    <gradient android:angle="270" android:startColor="@color/bat_yellow_light" android:endColor="@color/bat_yellow_deep" />
 </shape>

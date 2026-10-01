@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Primary action: solid bat-signal yellow pill with black text. -->
+<!-- Primary action: bat-signal yellow pill, lit from above, black text. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
@@ -10,7 +10,7 @@
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="40dp" />
-            <solid android:color="@color/bat_yellow" />
+            <gradient android:angle="270" android:startColor="@color/bat_yellow_light" android:endColor="@color/bat_yellow_deep" />
         </shape>
     </item>
 </selector>

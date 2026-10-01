@@ -12,21 +12,23 @@
 
     <!-- Batmobile as a screen overlay while the camera follows: the camera's target point is a
          fixed screen position, so drawing the car here is jitter-free (a map-layer marker lags
-         the camera by a frame). One view per render (overhead 2D, rear chase 3D) so a view
-         switch can cross-fade them. Bitmaps and position set in code; hidden when panned. -->
+         the camera by a frame). The bitmap is the 3D render for the current tilt and heading
+         (CarSprites); bitmap, position and rotation are set in code. Hidden when panned. -->
     <ImageView
-        android:id="@+id/img_car_2d"
+        android:id="@+id/img_car"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
+        android:layout_gravity="top|start"
         android:contentDescription="@null"
         android:visibility="gone" />
 
+    <!-- The neighbouring render, faded in on top of img_car so the car morphs between frames
+         through bends and the 2D/3D tilt instead of popping. -->
     <ImageView
-        android:id="@+id/img_car_3d"
+        android:id="@+id/img_car_blend"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
+        android:layout_gravity="top|start"
         android:contentDescription="@null"
         android:visibility="gone" />
 

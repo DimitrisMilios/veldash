@@ -15,13 +15,13 @@ import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.ImageView
 import com.veldash.databinding.ActivityMainBinding
 import com.veldash.location.Fix
 import com.veldash.location.LocationBus
 import com.veldash.location.LocationService
-import com.veldash.map.BatArt
+import android.graphics.Bitmap
 import com.veldash.map.BatStyle
+import com.veldash.map.CarSprites
 import com.veldash.map.BatmobileMarker
 import com.veldash.map.MapFile
 import com.veldash.map.MapRepository
@@ -73,6 +73,19 @@ class MainActivity : Activity(), LocationBus.Listener {
     private var current: MapFile? = null
 
     private val marker = BatmobileMarker()
+    /** The batmobile, pre-rendered from its 3D model: one frame per tilt / relative heading. */
+    private val sprites by lazy { CarSprites(this) }
+    private val pick = CarSprites.Pick()
+    private var shownCar: Bitmap? = null
+    private var shownBlend: Bitmap? = null
+
+    /**
+     * Camera heading. Follows the car's heading with a short lag ([CAMERA_BEARING_TAU_S]), so
+     * in a corner the car turns a little on screen and the 3D renders show its flank, without
+     * the long swing that made it look like it was sliding across the road.
+     */
+    private var camBearing = 0f
+    private var camBearingSet = false
     private val routeOverlay = RouteOverlay(this)
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -107,7 +120,11 @@ class MainActivity : Activity(), LocationBus.Listener {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!animating) return
-            if (lastFrameNs != 0L) motion.step((frameTimeNanos - lastFrameNs) / 1e9)
+            if (lastFrameNs != 0L) {
+                val dt = (frameTimeNanos - lastFrameNs) / 1e9
+                motion.step(dt)
+                stepCameraBearing(dt)
+            }
             lastFrameNs = frameTimeNanos
             // A view switch renders every frame so the tilt is silky; normal tracking is 30 Hz.
             val blendChanged = stepViewSwitch()
@@ -202,9 +219,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         binding.btnLoadMap.setOnClickListener { pickMap() }
         binding.btnEmptyLoadMap.setOnClickListener { pickMap() }
         binding.btnEndRoute.setOnClickListener { clearRoute() }
-        binding.btnRecenter.setImageBitmap(BatArt.car(this, view3d = false))
-        binding.imgCar2d.setImageBitmap(BatArt.car(this, view3d = false))
-        binding.imgCar3d.setImageBitmap(BatArt.car(this, view3d = true))
+        binding.btnRecenter.setImageBitmap(sprites.topDown())
         binding.btnRecenter.setOnClickListener { setFollow(true) }
         binding.btnSearch.setOnClickListener { if (searchPanel.isOpen) searchPanel.close() else searchPanel.open() }
 
@@ -277,12 +292,17 @@ class MainActivity : Activity(), LocationBus.Listener {
         }
         val useOverlay = follow && SystemClock.uptimeMillis() >= cameraHoldUntilMs
         if (useOverlay) {
-            followCamera(motion.lat, motion.lon, motion.bearing, animate = false)
+            followCamera(motion.lat, motion.lon, camBearing, animate = false)
             marker.setShown(false)
             showCarOverlay(true)
         } else {
-            marker.setArt(BatArt.car(this, viewBlend >= 0.5f))
-            marker.update(motion.lat, motion.lon, motion.bearing)
+            // Panned: the map-layer marker, using the frame for the heading relative to the view.
+            // Its rotation is map-aligned, so add the camera bearing back for the screen angle.
+            // The layer scales it by zoom.
+            val camB = map?.cameraPosition?.bearing?.toFloat() ?: 0f
+            sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend, motion.bearing - camB, pick)
+            pick.bitmap?.let { marker.setArt(it) }
+            marker.update(motion.lat, motion.lon, camB + pick.rotation)
             marker.setShown(true)
             showCarOverlay(false)
             if (blendChanged) tiltInPlace()
@@ -352,33 +372,78 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend
 
     /**
-     * Both car renders sit centred on the camera target. Mid-switch they cross-fade, and each is
-     * squashed vertically toward the other one's proportions, so the car reads as tilting rather
-     * than being swapped.
+     * The batmobile overlay, centred on the camera target: the render for the current tilt and
+     * the car's heading relative to the (slightly lagging) camera, plus the small leftover
+     * rotation and the between-frames scale. The neighbouring render is drawn on top with a
+     * proximity alpha, so the car morphs through bends and through the tilt instead of popping.
+     * The whole thing scales with zoom relative to the navigation zoom, so zooming out shrinks
+     * the car with the streets instead of leaving a giant render over a tiny map.
      */
     private fun showCarOverlay(show: Boolean) {
-        val b = viewBlend
-        if (show) {
-            // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
-            val cy = mapView.height * (1f + padTop().toFloat()) / 2f
-            placeCar(binding.imgCar2d, cy, 1f - b, 1f - 0.35f * b)
-            placeCar(binding.imgCar3d, cy, b, 0.8f + 0.2f * b)
-        } else {
-            placeCar(binding.imgCar2d, 0f, 0f, 1f)
-            placeCar(binding.imgCar3d, 0f, 0f, 1f)
+        val v = binding.imgCar
+        val v2 = binding.imgCarBlend
+        if (!show) {
+            if (v.visibility != View.GONE) v.visibility = View.GONE
+            if (v2.visibility != View.GONE) v2.visibility = View.GONE
+            return
+        }
+        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend, motion.bearing - camBearing, pick)
+        val bmp = pick.bitmap ?: return
+        if (bmp !== shownCar) {
+            shownCar = bmp
+            v.setImageBitmap(bmp)
+        }
+        val zoom = map?.cameraPosition?.zoom ?: navZoom(motion.lat)
+        val zoomScale = Math.pow(2.0, zoom - navZoom(motion.lat)).toFloat().coerceIn(CAR_SCALE_MIN, CAR_SCALE_MAX)
+        val scale = pick.scale * zoomScale
+        // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
+        val cx = mapView.width / 2f
+        val cy = mapView.height * (1f + padTop().toFloat()) / 2f
+        placeCar(v, bmp, cx, cy, pick.rotation, scale)
+        if (v.visibility != View.VISIBLE) v.visibility = View.VISIBLE
+
+        val blend = pick.blend
+        if (blend != null && pick.blendAlpha > 0.02f) {
+            if (blend !== shownBlend) {
+                shownBlend = blend
+                v2.setImageBitmap(blend)
+            }
+            placeCar(v2, blend, cx, cy, pick.rotation, scale)
+            v2.alpha = pick.blendAlpha
+            if (v2.visibility != View.VISIBLE) v2.visibility = View.VISIBLE
+        } else if (v2.visibility != View.GONE) {
+            v2.visibility = View.GONE
         }
     }
 
-    private fun placeCar(v: ImageView, centerY: Float, alpha: Float, scaleY: Float) {
-        val vis = if (alpha > 0.01f) View.VISIBLE else View.GONE
-        if (v.visibility != vis) v.visibility = vis
-        if (vis == View.GONE) return
-        // Bitmap height, not view.height: the view is GONE (unmeasured) the first time through.
-        val h = (v.drawable?.intrinsicHeight ?: 0).toFloat()
-        v.y = centerY - h / 2f
+    /** Centre a car bitmap view on (cx, cy) with the given screen rotation and scale. */
+    private fun placeCar(v: android.widget.ImageView, bmp: Bitmap, cx: Float, cy: Float, rotation: Float, scale: Float) {
+        // Bitmap size, not view size: the view is unmeasured the first time it is shown.
+        val w = bmp.width.toFloat()
+        val h = bmp.height.toFloat()
+        v.x = cx - w / 2f
+        v.y = cy - h / 2f
+        v.pivotX = w / 2f
         v.pivotY = h / 2f
-        v.alpha = alpha
-        v.scaleY = scaleY
+        v.rotation = rotation
+        v.scaleX = scale
+        v.scaleY = scale
+    }
+
+    /** Low-pass the camera heading toward the car's: the lag that lets the car swing in turns. */
+    private fun stepCameraBearing(dt: Double) {
+        if (!motion.hasPosition) return
+        if (!camBearingSet) {
+            snapCameraBearing()
+            return
+        }
+        val k = (1.0 - Math.exp(-dt / CAMERA_BEARING_TAU_S)).toFloat()
+        camBearing = SmoothMotion.lerpAngle(camBearing, motion.bearing, k)
+    }
+
+    private fun snapCameraBearing() {
+        camBearing = motion.bearing
+        camBearingSet = true
     }
 
     override fun onResume() {
@@ -515,7 +580,12 @@ class MainActivity : Activity(), LocationBus.Listener {
         follow = on
         binding.btnRecenter.visibility = if (on) View.GONE else View.VISIBLE
         if (on) {
-            LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+            if (motion.hasPosition) {
+                snapCameraBearing()
+                followCamera(motion.lat, motion.lon, camBearing, animate = true, forceZoom = true)
+            } else {
+                LocationBus.last?.let { followCamera(it.lat, it.lon, it.bearing, animate = true, forceZoom = true) }
+            }
         }
         // Swap between overlay and map marker right away (the ease hold keeps the marker up briefly).
         applyMotion()
@@ -762,6 +832,16 @@ class MainActivity : Activity(), LocationBus.Listener {
 
         /** Recenter ease length. */
         const val CAMERA_EASE_MS = 800
+        /**
+         * Camera heading lag behind the car's (s). Short: enough for the car to turn a little
+         * on screen and show its flank in a bend, not so long that it seems to slide sideways
+         * across the road (0.9 did).
+         */
+        const val CAMERA_BEARING_TAU_S = 0.5
+
+        /** Follow-mode car size relative to the navigation zoom: shrinks when zoomed out. */
+        const val CAR_SCALE_MIN = 0.45f
+        const val CAR_SCALE_MAX = 1.25f
         /** Full 2D <-> 3D switch length (ease-in-out). */
         const val VIEW_SWITCH_MS = 900f
         const val STALE_TICK_MS = 2000L

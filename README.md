@@ -59,9 +59,34 @@ Tap any row to route to it.
 While a route is active the trip card replaces "Where to?" at the bottom left: time left,
 distance and arrival time. Its ✕ ends the route (so does Back).
 
-The batmobile and bat-logo art comes from the full-size renders in `art/`. The APK ships
-trimmed, downscaled copies in `app/src/main/res/drawable-nodpi/` (`car_3d.png` is the chase view,
-`car_2d.png` the top-down view, `bat_logo.png` the destination pin).
+## Batmobile and pins
+
+The batmobile is a real 3D model, pre-rendered once into 24 small WebP frames in
+`app/src/main/assets/car/` (~620 KB). The head unit runs no 3D engine: each frame the app picks the
+render that matches the camera tilt and the car's heading relative to the camera
+(`CarSprites`), so the car truly tilts during the 2D/3D switch and turns into corners. The
+neighbouring render is cross-faded on top by proximity, so the car morphs between frames
+instead of popping, and the whole car scales with zoom relative to the navigation zoom so a
+zoomed-out map is not dominated by it. The camera heading lags the car's by a short 0.35 s:
+enough to show the flank in a bend, not enough to look like sliding.
+
+To re-render (Blender 4.2+, runs headless, ~10 minutes on a CPU):
+
+```bash
+blender -b -P tools/render-car.py -- --glb ~/veldash-data/models/batmobile_jet_car_1989.glb --out app/src/main/assets/car --size 480 --samples 48
+```
+
+Add `--preview <dir>` to also write PNGs over the map colour, or `--only p55_y000` for one frame.
+The model stays out of git (11 MB); keep it in `~/veldash-data/models/`.
+
+The destination pin is the Batman symbol in `art/batman-symbol.png`, shipped trimmed and
+downscaled as `app/src/main/res/drawable-nodpi/bat_logo.png`.
+
+**Credits:** "Batmobile Jet Car (1989)" by [kulonee](https://sketchfab.com/ynesolefru),
+[CC BY 4.0](http://creativecommons.org/licenses/by/4.0/), from
+[Sketchfab](https://sketchfab.com/3d-models/batmobile-jet-car-1989-2e82d07ed190408e95cdb406c44aefec);
+rendered to sprites. Batman and the Batmobile are trademarks of DC Comics: this build is for
+personal use, not for store distribution.
 
 - **Online:** Mapbox Geocoding when `MAPBOX_TOKEN` is set, otherwise Nominatim (OSM). Nominatim
   is queried only on an explicit search, never per keystroke, per its usage policy.

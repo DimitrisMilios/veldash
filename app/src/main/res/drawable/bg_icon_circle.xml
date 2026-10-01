@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Round badge behind each search-row icon (Google-style). -->
+<!-- Round badge behind each search-row icon, top-lit like the buttons. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="@color/bat_surface_high" />
+    <gradient android:angle="270" android:startColor="@color/bat_badge_top" android:endColor="@color/bat_surface_high" />
 </shape>

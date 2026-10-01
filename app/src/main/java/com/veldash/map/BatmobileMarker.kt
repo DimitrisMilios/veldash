@@ -37,7 +37,14 @@ class BatmobileMarker {
 
         val lyr = SymbolLayer(LAYER, SOURCE).withProperties(
             PropertyFactory.iconImage(IMAGE),
-            PropertyFactory.iconSize(1f),
+            // Shrink with zoom so a zoomed-out map is not dominated by the car.
+            PropertyFactory.iconSize(
+                Expression.interpolate(
+                    Expression.exponential(2f), Expression.zoom(),
+                    Expression.stop(12, 0.3f), Expression.stop(15, 0.55f),
+                    Expression.stop(17, 0.85f), Expression.stop(19, 1.2f),
+                ),
+            ),
             PropertyFactory.iconAllowOverlap(true),
             PropertyFactory.iconIgnorePlacement(true),
             // Rotate with the map, not the screen, so the car points along the road...

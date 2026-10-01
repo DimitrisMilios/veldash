@@ -8,7 +8,7 @@
     </item>
     <item>
         <shape android:shape="oval">
-            <solid android:color="@color/bat_surface_high" />
+            <gradient android:angle="270" android:startColor="@color/bat_raised_top" android:endColor="@color/bat_raised_bottom" />
             <stroke android:width="2dp" android:color="@color/bat_danger" />
         </shape>
     </item>
