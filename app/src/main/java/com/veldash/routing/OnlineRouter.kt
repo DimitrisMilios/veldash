@@ -1,5 +1,6 @@
 package com.veldash.routing
 
+import android.util.Log
 import com.veldash.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -14,6 +15,8 @@ import java.util.concurrent.TimeUnit
  * Synchronous: call from the background thread only.
  */
 object OnlineRouter {
+
+    private const val TAG = "OnlineRouter"
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -53,6 +56,7 @@ object OnlineRouter {
                 text
             }
         } catch (e: IOException) {
+            Log.w(TAG, "Routing request failed: $url", e)
             throw RoutingException("Network error", e)
         }
 

@@ -178,6 +178,11 @@ dependencies {
 
     implementation(libs.androidx.annotation)
 
+    // TLS 1.3 on Android 5-9. The platform's Conscrypt there stops at TLS 1.2, and the public OSRM
+    // demo server (router.project-osrm.org) only accepts TLS 1.3 -> "Network error" on every route.
+    // Installed as the first security provider in VeldashApp on API < 29 only; a no-op elsewhere.
+    implementation(libs.conscrypt.android)
+
     // --- Offline routing: embedded BRouter (pure Java, ~85 KB after R8). ---
     // GraphHopper was rejected: its graph loader alone exceeds the 60 MB RAM budget on a 1 GB unit.
     implementation(libs.brouter.core)

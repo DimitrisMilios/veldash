@@ -2,8 +2,12 @@ package com.veldash
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import android.os.Build
 import android.os.StrictMode
+import android.util.Log
 import com.veldash.routing.Connectivity
+import org.conscrypt.Conscrypt
+import java.security.Security
 
 /**
  * Process entry point. Deliberately tiny: no DI, no analytics, no crash SDK.
@@ -16,6 +20,7 @@ class VeldashApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        installModernTls()
         // One ConnectivityManager callback for the whole process. Drives online/offline routing choice.
         Connectivity.start(this)
         if (BuildConfig.DEBUG) {
@@ -36,6 +41,22 @@ class VeldashApp : Application() {
                     .penaltyLog()
                     .build()
             )
+        }
+    }
+
+    /**
+     * Android 5-9 ship a Conscrypt that tops out at TLS 1.2, and public servers (the OSRM demo
+     * router first among them) have started refusing anything below TLS 1.3. Putting the bundled
+     * Conscrypt first makes every SSLSocket in the process (OkHttp, MapLibre tiles) speak TLS 1.3.
+     * Android 10+ already does, so the extra provider is left out there.
+     */
+    private fun installModernTls() {
+        if (Build.VERSION.SDK_INT >= 29) return
+        try {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+        } catch (e: Throwable) {
+            // Native lib missing for this ABI or failed to load: keep the platform provider.
+            Log.w("VeldashApp", "Conscrypt unavailable, staying on platform TLS", e)
         }
     }
 
