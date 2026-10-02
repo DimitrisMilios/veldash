@@ -31,6 +31,25 @@ That uploads the 64-bit (arm64-v8a) APK. For a 32-bit head unit add `-PabiToUplo
 (that build also installs on 64-bit units). Testers get an email with the install link and can
 download it on the head unit through the App Distribution web page or the App Tester app.
 
+## Bundled offline data (Thessaloniki)
+
+The APK ships a vector map of Thessaloniki and Central Macedonia and the BRouter routing
+segment covering it (`E20_N40.rd5`), so the app navigates offline from the first start. On
+first launch (and after an update with newer data) they are copied out of the APK into the
+map and segment folders below; the bundled map opens by default until another file is picked.
+
+The data files are git-ignored. Produce them once per machine before building:
+
+```bash
+JAVA="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java" tools/fetch-bundled-data.sh
+```
+
+It downloads Planetiler, the Geofabrik Greece extract and the segment file into
+`~/veldash-data`, builds `thessaloniki.mbtiles` for the default bounding box (pass your own as
+`minLon,minLat,maxLon,maxLat` to widen it) and drops both files into `app/src/main/assets/`.
+Without them the build still succeeds (with a warning) and the app falls back to files copied
+in by hand.
+
 ## Map files
 
 Veldash renders `.mbtiles` files in place, straight from the filesystem. Copy your files to:
@@ -57,7 +76,8 @@ Long-press the map to set a destination. Back clears the route.
 /sdcard/Android/data/com.papajimmi.veldash/files/brouter/segments/
 ```
 
-For Greece that is `E20_N35.rd5` and `E25_N35.rd5`. The car profile and lookup table ship
+Thessaloniki and the north are in `E20_N40.rd5` (bundled); the rest of Greece needs
+`E20_N35.rd5`, `E25_N35.rd5` and `E25_N40.rd5`. The car profile and lookup table ship
 inside the APK under `app/src/main/assets/brouter/` (`car-vario.brf` and `lookups.dat` from the
 BRouter repository, `misc/profiles2/`). Without those two assets offline routing is disabled.
 

@@ -141,6 +141,13 @@ android {
         )
     }
 
+    androidResources {
+        // Bundled map tiles and routing segments are already compressed internally. Stored as-is
+        // they copy out of the APK as a straight stream on first start, and their size is known
+        // up front (BundledData checks it to detect updated data).
+        noCompress += listOf("mbtiles", "rd5")
+    }
+
     packaging {
         // Uncompressed native libs are mmapped straight from the APK: less RAM, faster cold start.
         jniLibs.useLegacyPackaging = false
@@ -193,3 +200,20 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.json)
 }
+
+// The offline map and routing data shipped in the APK are not committed (see .gitignore); run
+// tools/fetch-bundled-data.sh once per machine. Without them the app still builds and runs, but
+// the driver has to copy files in by hand.
+tasks.register("checkBundledData") {
+    val mapsDir = layout.projectDirectory.dir("src/main/assets/maps").asFile
+    val segsDir = layout.projectDirectory.dir("src/main/assets/brouter/segments").asFile
+    doLast {
+        val maps = mapsDir.listFiles { f -> f.name.endsWith(".mbtiles") }?.size ?: 0
+        val segs = segsDir.listFiles { f -> f.name.endsWith(".rd5") }?.size ?: 0
+        if (maps == 0 || segs == 0) {
+            org.gradle.api.logging.Logging.getLogger("checkBundledData")
+                .warn("WARNING: bundled offline data missing (maps=$maps, segments=$segs). Run tools/fetch-bundled-data.sh")
+        }
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn("checkBundledData") }

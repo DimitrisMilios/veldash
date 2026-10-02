@@ -34,7 +34,8 @@ OUT_DIR="$(mkdir -p "$(dirname "$OUT")" && cd "$(dirname "$OUT")" && pwd)"
 OUT_NAME="$(basename "$OUT")"
 PBF_ABS="$(cd "$(dirname "$PBF")" && pwd)/$(basename "$PBF")"
 cd "$OUT_DIR"
-PBF_REL="$(realpath --relative-to="$OUT_DIR" "$PBF_ABS")"
+# GNU realpath --relative-to is missing on macOS; python does the same everywhere.
+PBF_REL="$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$PBF_ABS" "$OUT_DIR")"
 
 ARGS=(
   --osm-path="$PBF_REL"

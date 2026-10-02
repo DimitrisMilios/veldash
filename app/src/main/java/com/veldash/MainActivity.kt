@@ -39,6 +39,7 @@ import com.veldash.search.PlaceStore
 import com.veldash.ui.Hud
 import com.veldash.ui.SearchPanel
 import com.veldash.util.Bg
+import com.veldash.util.BundledData
 import com.veldash.util.Prefs
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
@@ -236,7 +237,7 @@ class MainActivity : Activity(), LocationBus.Listener {
                 setDestination(p)
                 true
             }
-            loadSavedMap()
+            installBundledDataThenLoad()
         }
 
         // Destination pill (opens search), MAPS, and the two round map buttons.
@@ -444,7 +445,8 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun showCarOverlay(show: Boolean) {
         val v = binding.imgCar
         val v2 = binding.imgCarBlend
-        if (!show) {
+        // No map on screen yet (first start, installing): a car floating on black looks broken.
+        if (!show || map?.style?.isFullyLoaded != true) {
             if (v.visibility != View.GONE) v.visibility = View.GONE
             if (v2.visibility != View.GONE) v2.visibility = View.GONE
             return
@@ -791,6 +793,23 @@ class MainActivity : Activity(), LocationBus.Listener {
     }
 
     // ---- Map loading ----
+
+    /**
+     * First start (and after an app update with new data): copy the bundled map and routing
+     * segments out of the APK, then open the map. The bundled map is the default until the
+     * driver picks another file; a user-chosen map is never overridden.
+     */
+    private fun installBundledDataThenLoad() {
+        showStatus(getString(R.string.installing_map))
+        Bg.compute({
+            BundledData.install(this)
+            BundledData.bundledMap(this)
+        }) { bundled ->
+            if (isFinishing || isDestroyed) return@compute
+            if (prefs.mapPath == null && bundled != null && bundled.exists()) prefs.mapPath = bundled.absolutePath
+            loadSavedMap()
+        }
+    }
 
     private fun loadSavedMap() {
         val path = prefs.mapPath
