@@ -116,13 +116,6 @@ class MainActivity : Activity(), LocationBus.Listener {
      */
     private val followGate by lazy { FollowGate(breakPx = DRAG_BREAK_DP * resources.displayMetrics.density) }
 
-    /**
-     * 1 at the navigation zoom, falling as the driver zooms out: the chase view flattens and the
-     * car moves up towards centre, like a camera pulling back and looking down. Set per frame
-     * by [followCamera] from the zoom it actually applied.
-     */
-    private var pitchScale = 1f
-
     // ---- 2D <-> 3D switch: tilt, top padding, zoom and the car art all blend on one curve ----
     /** 0 = flat 2D, 1 = 3D chase. Equals [blendTo] except while a switch plays. */
     private var viewBlend = 1f
@@ -355,11 +348,22 @@ class MainActivity : Activity(), LocationBus.Listener {
             marker.setShown(false)
             showCarOverlay(true)
         } else {
-            // Panned (free camera): the map-layer marker, the top-down render laid flat on the
-            // road and turned to the car's heading. The map projects it, so it is right at any
-            // tilt, zoom and screen position; nothing here depends on the camera.
-            marker.setArt(sprites.topDown())
-            marker.update(motion.lat, motion.lon, motion.bearing)
+            // Panned (free camera): the map-layer marker at the car's position.
+            // 3D: the chase render for the car's heading relative to the camera (the orbit
+            // frames ARE the camera looking at the car from that side), drawn upright. The
+            // leftover few degrees are a screen rotation, as in follow mode.
+            // 2D (and the first degrees of the switch): the top-down render laid flat on the
+            // road and turned to the heading, so the map projects it like a decal.
+            val tilt = MapSetup.MAX_PITCH.toFloat() * viewBlend
+            if (tilt >= FLAT_MARKER_TILT_DEG) {
+                val mapBearing = map?.cameraPosition?.bearing?.toFloat() ?: camBearing
+                sprites.pick(tilt, CarSprites.normalize(motion.bearing - mapBearing), pick)
+                pick.bitmap?.let { marker.setArt(it, chase = true) }
+                marker.update(motion.lat, motion.lon, pick.rotation)
+            } else {
+                marker.setArt(sprites.topDown(), chase = false)
+                marker.update(motion.lat, motion.lon, motion.bearing)
+            }
             marker.setShown(true)
             showCarOverlay(false)
             if (blendChanged) tiltInPlace()
@@ -426,11 +430,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     }
 
     /** Top padding (fraction of height) for the current blend: the car sinks as the view tilts. */
-    private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend * pitchScale
-
-    /** How much of the full chase pitch to use at [zoom]: full at the nav zoom, flatter zoomed out. */
-    private fun pitchFactor(zoom: Double, nav: Double): Float =
-        (1.0 - (nav - zoom) / PITCH_FLATTEN_ZOOMS).coerceIn(PITCH_MIN_FACTOR.toDouble(), 1.0).toFloat()
+    private fun padTop(): Double = PAD_TOP_2D + (PAD_TOP_3D - PAD_TOP_2D) * viewBlend
 
     /**
      * The batmobile overlay, centred on the camera target: the render for the current tilt and
@@ -455,7 +455,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         // turn: cap it so the car never shows its flank or nose while the map says "ahead".
         val mapBearing = map?.cameraPosition?.bearing?.toFloat() ?: camBearing
         val rel = CarSprites.normalize(motion.bearing - mapBearing).coerceIn(-MAX_REL_YAW_DEG, MAX_REL_YAW_DEG)
-        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale, rel, pick)
+        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend, rel, pick)
         val bmp = pick.bitmap ?: return
         if (bmp !== shownCar) {
             shownCar = bmp
@@ -696,11 +696,10 @@ class MainActivity : Activity(), LocationBus.Listener {
             !forceZoom && current in (nav - FOLLOW_ZOOM_OUT)..(nav + FOLLOW_ZOOM_IN) -> current
             else -> nav
         }
-        pitchScale = pitchFactor(zoom, nav)
         val cam = CameraPosition.Builder()
             .target(LatLng(lat, lon))
             .bearing(bearing.toDouble())
-            .tilt(MapSetup.MAX_PITCH * viewBlend * pitchScale)
+            .tilt(MapSetup.MAX_PITCH * viewBlend)
             .zoom(zoom)
             .padding(0.0, h * padTop(), 0.0, 0.0)
             .build()
@@ -911,9 +910,6 @@ class MainActivity : Activity(), LocationBus.Listener {
 
         /** One-finger drag that frees the camera; smaller moves and pinch drift are ignored. */
         const val DRAG_BREAK_DP = 24f
-        /** Zoom levels out from the nav zoom over which the chase pitch flattens to [PITCH_MIN_FACTOR]. */
-        const val PITCH_FLATTEN_ZOOMS = 3.5
-        const val PITCH_MIN_FACTOR = 0.35f
         const val EARTH_CIRCUMFERENCE_M = 40_075_016.7
 
         /**
@@ -942,6 +938,8 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val CAR_SCALE_MAX = 1.15f
         /** Largest car-vs-camera heading the chase sprite depicts; more than this is GPS noise. */
         const val MAX_REL_YAW_DEG = 45f
+        /** Free-camera marker: below this tilt the flat top-down decal, above it the chase render. */
+        const val FLAT_MARKER_TILT_DEG = 10f
 
         /** Full 2D <-> 3D switch length (ease-in-out). */
         const val VIEW_SWITCH_MS = 900f
