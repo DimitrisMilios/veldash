@@ -355,16 +355,11 @@ class MainActivity : Activity(), LocationBus.Listener {
             marker.setShown(false)
             showCarOverlay(true)
         } else {
-            // Panned (free camera): the map-layer marker with the straight-behind render for the
-            // current tilt. A pitched render cannot be rotated on screen without looking wrong
-            // (a car heading away from the camera comes out upside-down), so in 3D it stays
-            // upright and nose-up; the route line shows the heading. Once the view is nearly
-            // flat the top-down render rotates with the heading correctly. The layer scales by zoom.
-            val tilt = MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale
-            sprites.pick(tilt, 0f, pick)
-            pick.bitmap?.let { marker.setArt(it) }
-            val camB = map?.cameraPosition?.bearing?.toFloat() ?: 0f
-            marker.update(motion.lat, motion.lon, if (tilt < FLAT_MARKER_TILT_DEG) motion.bearing else camB)
+            // Panned (free camera): the map-layer marker, the top-down render laid flat on the
+            // road and turned to the car's heading. The map projects it, so it is right at any
+            // tilt, zoom and screen position; nothing here depends on the camera.
+            marker.setArt(sprites.topDown())
+            marker.update(motion.lat, motion.lon, motion.bearing)
             marker.setShown(true)
             showCarOverlay(false)
             if (blendChanged) tiltInPlace()
@@ -442,8 +437,9 @@ class MainActivity : Activity(), LocationBus.Listener {
      * the car's heading relative to the (slightly lagging) camera, plus the small leftover
      * rotation and the between-frames scale. The neighbouring render is drawn on top with a
      * proximity alpha, so the car morphs through bends and through the tilt instead of popping.
-     * The whole thing scales with zoom relative to the navigation zoom, so zooming out shrinks
-     * the car with the streets instead of leaving a giant render over a tiny map.
+     * The size follows the zoom on a damped curve ([CAR_ZOOM_EXPONENT] of the map's own 2^dz):
+     * zooming out shrinks the car with the streets but keeps it readable, zooming in grows it a
+     * little instead of filling the screen. Clamped to [CAR_SCALE_MIN]..[CAR_SCALE_MAX].
      */
     private fun showCarOverlay(show: Boolean) {
         val v = binding.imgCar
@@ -453,14 +449,21 @@ class MainActivity : Activity(), LocationBus.Listener {
             if (v2.visibility != View.GONE) v2.visibility = View.GONE
             return
         }
-        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale, motion.bearing - camBearing, pick)
+        // Heading relative to the camera as actually drawn (the map's bearing, which differs
+        // from camBearing during a two-finger rotate or a recenter ease). In follow mode the
+        // camera lags the car by well under a second, so a large angle is GPS noise, not a
+        // turn: cap it so the car never shows its flank or nose while the map says "ahead".
+        val mapBearing = map?.cameraPosition?.bearing?.toFloat() ?: camBearing
+        val rel = CarSprites.normalize(motion.bearing - mapBearing).coerceIn(-MAX_REL_YAW_DEG, MAX_REL_YAW_DEG)
+        sprites.pick(MapSetup.MAX_PITCH.toFloat() * viewBlend * pitchScale, rel, pick)
         val bmp = pick.bitmap ?: return
         if (bmp !== shownCar) {
             shownCar = bmp
             v.setImageBitmap(bmp)
         }
         val zoom = map?.cameraPosition?.zoom ?: navZoom(motion.lat)
-        val zoomScale = Math.pow(2.0, zoom - navZoom(motion.lat)).toFloat().coerceIn(CAR_SCALE_MIN, CAR_SCALE_MAX)
+        val zoomScale = Math.pow(2.0, (zoom - navZoom(motion.lat)) * CAR_ZOOM_EXPONENT)
+            .toFloat().coerceIn(CAR_SCALE_MIN, CAR_SCALE_MAX)
         val scale = pick.scale * zoomScale
         // Camera target with top padding p (fraction of height) sits at y = h(1+p)/2.
         val cx = mapView.width / 2f
@@ -903,7 +906,8 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val MAX_NAV_ZOOM = 19.0
         /** How far a driver pinch may stray from [navZoom] before follow mode resets it. */
         const val FOLLOW_ZOOM_OUT = 3.5
-        const val FOLLOW_ZOOM_IN = 1.0
+        /** Covers a double-tap zoom (+1) with margin so it is not snapped back on the next fix. */
+        const val FOLLOW_ZOOM_IN = 1.5
 
         /** One-finger drag that frees the camera; smaller moves and pinch drift are ignored. */
         const val DRAG_BREAK_DP = 24f
@@ -929,11 +933,16 @@ class MainActivity : Activity(), LocationBus.Listener {
         const val CAMERA_BEARING_TAU_S = 0.5
 
         /** Follow-mode car size relative to the navigation zoom: shrinks when zoomed out. */
-        const val CAR_SCALE_MIN = 0.25f
-        const val CAR_SCALE_MAX = 1.25f
+        /**
+         * 1.0 would be true-to-the-map scaling; 0.5 keeps the car readable at every zoom, the way
+         * a navigation app's own car barely changes size (matches [BatmobileMarker]'s size curve).
+         */
+        const val CAR_ZOOM_EXPONENT = 0.5
+        const val CAR_SCALE_MIN = 0.6f
+        const val CAR_SCALE_MAX = 1.15f
+        /** Largest car-vs-camera heading the chase sprite depicts; more than this is GPS noise. */
+        const val MAX_REL_YAW_DEG = 45f
 
-        /** Below this tilt the free-camera marker is the (rotatable) near-top-down render. */
-        const val FLAT_MARKER_TILT_DEG = 20f
         /** Full 2D <-> 3D switch length (ease-in-out). */
         const val VIEW_SWITCH_MS = 900f
         const val STALE_TICK_MS = 2000L

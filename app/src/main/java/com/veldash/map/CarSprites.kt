@@ -249,9 +249,9 @@ class CarSprites(private val context: Context) {
         /** 480 px across 4.6 m x 1.12. */
         const val SRC_PX_PER_M = 480f / (4.6f * 1.12f)
 
-        /** Car size on screen: ~125 dp long top-down, a big chase-view car at full tilt. */
-        private const val DP_PER_M_2D = 27f
-        private const val DP_PER_M_3D = 52f
+        /** Car size on screen at the nav zoom: ~105 dp long top-down, ~195 dp at full tilt. */
+        private const val DP_PER_M_2D = 23f
+        private const val DP_PER_M_3D = 42f
 
         private const val YAW_CACHE = 8
         private const val HALO_DP = 5f

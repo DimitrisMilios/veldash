@@ -12,12 +12,14 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.Point
 
 /**
- * The batmobile: our own-position marker.
+ * The batmobile: our own-position marker while the camera is free (panned away).
  *
  * Deliberately NOT MapLibre's LocationComponent, which adds four layers, a pulsing animation,
  * a compass engine and a stack of classes. This is one GeoJSON source, one symbol layer and one
- * bitmap (the [CarSprites] render for the current tilt and heading). It is only shown while the
- * camera is free; in follow mode the car is a screen overlay. Updating it is one setGeoJson().
+ * bitmap: the top-down render, laid flat on the road (pitch and rotation aligned to the map) and
+ * turned to the car's heading. The GPU foreshortens it with the map, so it sits correctly on the
+ * ground at any tilt, zoom or screen position, like a decal. In follow mode the car is a screen
+ * overlay instead. Updating it is one setGeoJson().
  *
  * Lives on top of the style, so it must be re-attached every time a new style is set.
  */
@@ -38,21 +40,21 @@ class BatmobileMarker {
 
         val lyr = SymbolLayer(LAYER, SOURCE).withProperties(
             PropertyFactory.iconImage(IMAGE),
-            // Shrink with zoom so a zoomed-out map is not dominated by the car.
+            // Screen size follows the zoom gently (half the map's rate) and stays readable:
+            // it never shrinks to a speck zoomed out nor fills the screen zoomed in.
             PropertyFactory.iconSize(
                 Expression.interpolate(
-                    Expression.exponential(2f), Expression.zoom(),
-                    Expression.stop(12, 0.4f), Expression.stop(15, 0.7f),
-                    Expression.stop(17, 1.0f), Expression.stop(19, 1.3f),
+                    Expression.linear(), Expression.zoom(),
+                    Expression.stop(13, 0.75f), Expression.stop(15, 0.9f),
+                    Expression.stop(17, 1.25f), Expression.stop(18, 1.45f),
                 ),
             ),
             PropertyFactory.iconAllowOverlap(true),
             PropertyFactory.iconIgnorePlacement(true),
-            // Rotate with the map, not the screen, so the car points along the road...
+            // Flat on the road: rotates with the map so the car points along the street, and
+            // pitches with it so a tilted view foreshortens the car like the ground around it.
             PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-            // ...but draw it upright to the screen: the art is the 3D render for the current
-            // tilt and heading, which already carries its own perspective.
-            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
+            PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_MAP),
             PropertyFactory.iconRotate(Expression.get(PROP_BEARING)),
             PropertyFactory.visibility(if (fix != null) Property.VISIBLE else Property.NONE),
         )
@@ -64,7 +66,7 @@ class BatmobileMarker {
         visible = fix != null
     }
 
-    /** Car image for the current view mode. Re-adding an image under the same name replaces it in place. */
+    /** Car image (the top-down render). Re-adding an image under the same name replaces it in place. */
     fun setArt(bmp: Bitmap) {
         if (bmp === art) return
         art = bmp
