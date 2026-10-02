@@ -25,15 +25,21 @@ import com.veldash.R
  *
  * - Platform LocationManager only: no Play Services, no fused-location library.
  * - GPS_PROVIDER at a fixed 1000 ms interval, 0 m distance filter (steady cadence for the HUD).
- * - Falls back to NETWORK_PROVIDER on units without a GPS chip.
+ * - NETWORK_PROVIDER (Wi-Fi / cell) subscribed alongside: it is the only thing that produces a
+ *   position indoors or in the first minutes of a cold start. Its fixes are used only while GPS
+ *   has not delivered one recently, so the HUD never flips between the two on the road.
+ * - Seeded from the freshest last-known position of any provider.
  * - Delivers on the main looper straight into [LocationBus]; no thread hop, no allocation churn.
  * - Foreground so GPS keeps running when the driver switches to a music app mid-route.
  */
 class LocationService : Service(), LocationListener {
 
     private lateinit var lm: LocationManager
-    private var provider: String? = null
+    private val providers = ArrayList<String>(2)
     private var subscribed = false
+
+    /** elapsedRealtime of the last GPS fix that was published; 0 = none yet. */
+    private var lastGpsMs = 0L
 
     private var prev: Location? = null
     private var stickyBearing = 0f
@@ -74,32 +80,50 @@ class LocationService : Service(), LocationListener {
 
     private fun subscribe() {
         if (subscribed) return
-        val providers = lm.allProviders
-        val p = when {
-            LocationManager.GPS_PROVIDER in providers -> LocationManager.GPS_PROVIDER
-            LocationManager.NETWORK_PROVIDER in providers -> LocationManager.NETWORK_PROVIDER
-            else -> null
-        }
-        if (p == null) {
+        val all = lm.allProviders
+        providers.clear()
+        if (LocationManager.GPS_PROVIDER in all) providers.add(LocationManager.GPS_PROVIDER)
+        if (LocationManager.NETWORK_PROVIDER in all) providers.add(LocationManager.NETWORK_PROVIDER)
+        if (providers.isEmpty()) {
             LocationBus.setGpsAvailable(false)
             return
         }
-        provider = p
         try {
-            lm.requestLocationUpdates(p, INTERVAL_MS, 0f, this, Looper.getMainLooper())
+            var anyEnabled = false
+            var seed: Location? = null
+            for (p in providers) {
+                lm.requestLocationUpdates(p, INTERVAL_MS, 0f, this, Looper.getMainLooper())
+                if (lm.isProviderEnabled(p)) anyEnabled = true
+                // Freshest last-known position across providers; a 2-day-old GPS fix must not
+                // beat a Wi-Fi position from a minute ago.
+                val lk = lm.getLastKnownLocation(p)
+                if (lk != null && (seed == null || lk.elapsedRealtimeNanos > seed.elapsedRealtimeNanos)) seed = lk
+            }
             subscribed = true
-            LocationBus.setGpsAvailable(lm.isProviderEnabled(p))
-            // Seed with the last known position so the batmobile appears before the first live fix.
+            LocationBus.setGpsAvailable(anyEnabled)
+            // Seed so the batmobile appears before the first live fix.
             // Its elapsedRealtimeNanos carries the true age, so LocationBus.isFresh() stays honest.
-            lm.getLastKnownLocation(p)?.let { onLocationChanged(it) }
+            seed?.let { onLocationChanged(it) }
         } catch (e: SecurityException) {
             stopSelf()
         }
     }
 
+    private fun anyProviderEnabled(): Boolean {
+        for (p in providers) if (lm.isProviderEnabled(p)) return true
+        return false
+    }
+
     // ---- LocationListener ----
 
     override fun onLocationChanged(location: Location) {
+        val nowMs = location.elapsedRealtimeNanos / 1_000_000L
+        if (location.provider == LocationManager.GPS_PROVIDER) {
+            lastGpsMs = nowMs
+        } else if (lastGpsMs != 0L && nowMs - lastGpsMs < GPS_HOLD_MS) {
+            // GPS is live: a coarse Wi-Fi position would only yank the car off the road.
+            return
+        }
         val last = prev
 
         // Movement derived from consecutive positions. Used whenever the chip reports nothing,
@@ -111,7 +135,13 @@ class LocationService : Service(), LocationListener {
             dtS = (location.elapsedRealtimeNanos - last.elapsedRealtimeNanos) / 1e9f
             if (dtS > 0.2f) distM = last.distanceTo(location)
         }
-        val moved = dtS > 0.2f && distM >= MIN_MOVE_M
+        // Movement is trusted only when the displacement clearly exceeds the position noise:
+        // at least MIN_MOVE_M and a fraction of the worse accuracy radius of the two fixes.
+        // Wi-Fi / cell fixes wander tens of metres while standing still, so they never derive
+        // speed or heading at all; the car then holds its last heading instead of spinning.
+        val coarse = location.provider != LocationManager.GPS_PROVIDER
+        val noiseM = maxOf(MIN_MOVE_M, ACCURACY_MOVE_FRACTION * maxOf(accuracyOf(location), accuracyOf(last)))
+        val moved = !coarse && dtS > 0.2f && distM >= noiseM
 
         var speedKmh = when {
             location.hasSpeed() && location.speed > 0f -> location.speed * MPS_TO_KMH
@@ -162,11 +192,11 @@ class LocationService : Service(), LocationListener {
     // old head unit the moment the provider toggles. Keep them.
 
     override fun onProviderEnabled(provider: String) {
-        if (provider == this.provider) LocationBus.setGpsAvailable(true)
+        if (provider in providers) LocationBus.setGpsAvailable(true)
     }
 
     override fun onProviderDisabled(provider: String) {
-        if (provider == this.provider) LocationBus.setGpsAvailable(false)
+        if (provider in providers) LocationBus.setGpsAvailable(anyProviderEnabled())
     }
 
     @Deprecated("Abstract on API < 29, must be implemented")
@@ -225,8 +255,13 @@ class LocationService : Service(), LocationListener {
 
     companion object {
         private const val INTERVAL_MS = 1000L
+
+        /** Network fixes are dropped while a GPS fix is younger than this. */
+        private const val GPS_HOLD_MS = 10_000L
         private const val MPS_TO_KMH = 3.6f
         private const val MIN_MOVE_M = 1.5f
+        /** A displacement under this fraction of the reported accuracy is treated as noise. */
+        private const val ACCURACY_MOVE_FRACTION = 0.5f
         private const val MIN_BEARING_DIST_M = 3f
         private const val MIN_BEARING_SPEED_KMH = 4f
         private const val MAX_DERIVED_KMH = 250f
@@ -236,6 +271,8 @@ class LocationService : Service(), LocationListener {
         private const val NOTIF_ID = 1
         private const val CHANNEL_ID = "nav"
         private const val ACTION_STOP = "com.veldash.STOP"
+
+        private fun accuracyOf(l: Location?): Float = if (l != null && l.hasAccuracy()) l.accuracy else 0f
 
         fun hasLocationPermission(context: Context): Boolean {
             if (Build.VERSION.SDK_INT < 23) return true
