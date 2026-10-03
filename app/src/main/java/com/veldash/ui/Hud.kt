@@ -5,6 +5,7 @@ import android.text.format.DateFormat
 import android.view.View
 import com.veldash.R
 import com.veldash.databinding.ActivityMainBinding
+import com.veldash.map.BatArt
 import com.veldash.nav.NavState
 import com.veldash.routing.Maneuver
 import com.veldash.routing.Route
@@ -33,6 +34,7 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
     private var lastTimeLeft: String? = null
     private var lastSub: String? = null
     private var lastDestination: String? = null
+    private var lastBadge = 0
     private var lastSpeed = Int.MIN_VALUE
     /** Starts true: the speed badge opens on the dim "--" placeholder with the unit hidden. */
     private var speedDim = true
@@ -68,15 +70,33 @@ class Hud(private val context: Context, private val b: ActivityMainBinding) {
 
     // ---- Destination pill ----
 
-    /** "To <name>" with the end-route cross, or the Where to? prompt when [name] is null. */
-    fun showDestination(name: String?) {
-        if (name == lastDestination) return
+    /**
+     * "To <name>" with the end-route cross, or the Where to? prompt when [name] is null. The
+     * icon before the name is the destination's badge ([badge], a drawable; see `PlaceIcons`)
+     * or the bat logo when it has none, matching the pin on the map.
+     */
+    fun showDestination(name: String?, badge: Int = 0) {
+        if (name == lastDestination && badge == lastBadge) return
         lastDestination = name
+        lastBadge = badge
         val routing = name != null
         val idleV = if (routing) View.GONE else View.VISIBLE
         val routeV = if (routing) View.VISIBLE else View.GONE
         b.imgDestIcon.visibility = idleV
         b.txtWhereTo.visibility = idleV
+        if (routing) {
+            // The wide bat sits at 22dp; a square badge needs the search icon's 26dp to read.
+            val res = context.resources
+            val lp = b.imgDestBat.layoutParams
+            if (badge != 0) {
+                lp.height = res.getDimensionPixelSize(R.dimen.pill_icon)
+                b.imgDestBat.setImageBitmap(BatArt.placeLogo(context, badge, Math.round(lp.height / res.displayMetrics.density)))
+            } else {
+                lp.height = res.getDimensionPixelSize(R.dimen.pill_bat_height)
+                b.imgDestBat.setImageResource(R.drawable.ic_bat)
+            }
+            b.imgDestBat.layoutParams = lp
+        }
         b.imgDestBat.visibility = routeV
         b.txtDestLabel.visibility = routeV
         b.txtDestName.text = name ?: ""

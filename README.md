@@ -121,7 +121,8 @@ icon (or the keyboard's search key) for online results, or type coordinates as `
   badges (Batcave, Wayne Enterprises, Catwoman, Joker, Riddler;
   `res/drawable-nodpi/logo_*.png`, sources in `art/`). The choice is stored with the place,
   and while driving to that place the destination pin on the map wears the same badge (on an
-  ink disc, on the usual spike) instead of the bat logo.
+  ink disc, on the usual spike) instead of the bat logo, as does the destination pill next to
+  the place name.
 - **Recent history:** every destination you pick. The first four show, "More from recent
   history" shows the rest; long-press one to save it or remove it from history.
 

@@ -765,7 +765,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         motion.setNavigator(null)
         routeOverlay.setDestination(p, destinationBadge)
         routeOverlay.setRoute(null)
-        hud.showDestination(destinationName ?: getString(R.string.dropped_pin))
+        hud.showDestination(destinationName ?: getString(R.string.dropped_pin), destinationBadge)
 
         // Start point: live fix if we have one, else the camera target (handy on an emulator without GPS).
         val fix = LocationBus.last
