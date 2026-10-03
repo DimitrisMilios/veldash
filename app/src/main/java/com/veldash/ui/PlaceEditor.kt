@@ -23,8 +23,8 @@ import org.maplibre.android.geometry.LatLng
 
 /**
  * The dialog behind "Tap to set" and Edit on Home and Work, and behind saving or editing a
- * favorite: a name (favorites only), an address line and a row of logos to pick from
- * ([PlaceIcons], plus the row's default glyph).
+ * favorite: a name (favorites only), an address line and a row of logos to pick from: the bat
+ * logo (the default) first, then the five badges of [PlaceIcons].
  *
  * Saving with the address line untouched keeps the place where it is and only changes the
  * name and logo. A typed address is resolved first: "lat, lon" instantly, anything else
@@ -33,7 +33,7 @@ import org.maplibre.android.geometry.LatLng
  */
 class PlaceEditor(private val activity: Activity, private val currentPosition: () -> LatLng?) {
 
-    /** What is being edited: decides the title, the default glyph and whether a name is asked. */
+    /** What is being edited: decides the title and whether a name is asked. */
     enum class Target { HOME, WORK, FAVORITE }
 
     /**
@@ -59,20 +59,15 @@ class PlaceEditor(private val activity: Activity, private val currentPosition: (
         v.editPlaceAddress.setText(anchorText)
         v.editPlaceAddress.setSelection(v.editPlaceAddress.length())
 
-        // ---- logo chips: the default glyph first, then the five badges ----
+        // ---- logo chips: the bat logo (default) first, then the five badges ----
         var selected = initial?.icon?.takeIf { PlaceIcons.drawable(it) != 0 } ?: ""
-        val glyph = when (target) {
-            Target.HOME -> R.drawable.ic_home
-            Target.WORK -> R.drawable.ic_work
-            Target.FAVORITE -> R.drawable.ic_star
-        }
         val chips = ArrayList<ImageView>()
         fun select(id: String) {
             selected = id
             for (c in chips) c.isSelected = c.tag == id
         }
         for (id in listOf("") + PlaceIcons.ALL) {
-            v.rowPlaceIcons.addView(chip(id, glyph) { select(id) }.also { chips += it })
+            v.rowPlaceIcons.addView(chip(id) { select(id) }.also { chips += it })
         }
         select(selected)
 
@@ -141,31 +136,25 @@ class PlaceEditor(private val activity: Activity, private val currentPosition: (
         }
     }
 
-    /** One round logo chip; [glyph] is the vector drawn for the default (empty) id. */
-    private fun chip(id: String, glyph: Int, onClick: () -> Unit): ImageView {
+    /** One round logo chip: the bat logo for the default (empty) id, else that badge. */
+    private fun chip(id: String, onClick: () -> Unit): ImageView {
         val res = activity.resources
         val size = res.getDimensionPixelSize(R.dimen.pick_chip)
+        val pad = res.getDimensionPixelSize(R.dimen.pick_chip_padding)
         val chip = ImageView(activity)
         chip.layoutParams = LinearLayout.LayoutParams(size, size).apply {
             marginEnd = res.getDimensionPixelSize(R.dimen.gap_medium)
         }
         chip.setBackgroundResource(R.drawable.bg_chip_pick)
         chip.scaleType = ImageView.ScaleType.FIT_CENTER
+        chip.setPadding(pad, pad, pad, pad)
         chip.tag = id
         chip.contentDescription = activity.getString(PlaceIcons.label(id))
         chip.isClickable = true
         chip.isFocusable = true
-        val logo = PlaceIcons.drawable(id)
-        val pad: Int
-        if (logo == 0) {
-            pad = res.getDimensionPixelSize(R.dimen.pick_glyph_padding)
-            chip.setImageResource(glyph)
-        } else {
-            pad = res.getDimensionPixelSize(R.dimen.pick_chip_padding)
-            val dp = Math.round((size - 2 * pad) / res.displayMetrics.density)
-            chip.setImageBitmap(BatArt.placeLogo(activity, logo, dp))
-        }
-        chip.setPadding(pad, pad, pad, pad)
+        val logo = PlaceIcons.drawable(id).let { if (it == 0) R.drawable.bat_logo else it }
+        val dp = Math.round((size - 2 * pad) / res.displayMetrics.density)
+        chip.setImageBitmap(BatArt.placeLogo(activity, logo, dp))
         chip.setOnClickListener { onClick() }
         return chip
     }

@@ -252,13 +252,12 @@ class SearchPanel(
         val h = v.tag as Holder
         val kind = row.kind
 
-        // A saved place wearing one of the logos shows it instead of the row's glyph.
+        // Home, Work and favorites wear their chosen badge, or the bat logo (the default), which
+        // search results also use. The other rows keep their Material glyphs.
         val saved = kind == Kind.HOME || kind == Kind.WORK || kind == Kind.FAVORITE
         val badgeRes = if (saved) PlaceIcons.drawable(row.place?.icon ?: "") else 0
         val iconRes = when (kind) {
-            Kind.HOME -> R.drawable.ic_home
-            Kind.WORK -> R.drawable.ic_work
-            Kind.SAVE_DEST, Kind.FAVORITE -> R.drawable.ic_star
+            Kind.SAVE_DEST -> R.drawable.ic_star
             Kind.HERE -> R.drawable.ic_my_location
             Kind.RECENT -> R.drawable.ic_history
             else -> 0
@@ -267,7 +266,7 @@ class SearchPanel(
         // the square place logos sit in between.
         val pad = when {
             badgeRes != 0 -> badgePad
-            kind == Kind.RESULT -> logoPad
+            saved || kind == Kind.RESULT -> logoPad
             else -> iconPad
         }
         h.icon.setPadding(pad, pad, pad, pad)
@@ -280,7 +279,7 @@ class SearchPanel(
                 h.icon.setImageResource(iconRes)
                 h.icon.visibility = View.VISIBLE
             }
-            kind == Kind.RESULT -> {
+            saved || kind == Kind.RESULT -> {
                 h.icon.setImageBitmap(logo)
                 h.icon.visibility = View.VISIBLE
             }

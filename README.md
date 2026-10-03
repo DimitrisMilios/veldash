@@ -117,11 +117,11 @@ icon (or the keyboard's search key) for online results, or type coordinates as `
 - **Saved places:** long-press a result to save it, with a name and a logo; long-press a saved
   place to edit (rename, move, change its logo) or remove it. When a destination is set, a
   row saves it.
-- **Logos:** Home, Work and every saved place can wear one of five badges (Batcave, Wayne
-  Enterprises, Catwoman, Joker, Riddler; `res/drawable-nodpi/logo_*.png`, sources in `art/`)
-  instead of the default house, briefcase or star. The choice is stored with the place, and
-  while driving to that place the destination pin on the map wears the same badge (on an ink
-  disc, on the usual spike) instead of the bat logo.
+- **Logos:** Home, Work and every saved place wear the bat logo by default, or one of five
+  badges (Batcave, Wayne Enterprises, Catwoman, Joker, Riddler;
+  `res/drawable-nodpi/logo_*.png`, sources in `art/`). The choice is stored with the place,
+  and while driving to that place the destination pin on the map wears the same badge (on an
+  ink disc, on the usual spike) instead of the bat logo.
 - **Recent history:** every destination you pick. The first four show, "More from recent
   history" shows the rest; long-press one to save it or remove it from history.
 

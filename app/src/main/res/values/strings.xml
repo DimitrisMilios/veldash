@@ -96,7 +96,7 @@
     <string name="enter_name">Enter a name</string>
     <string name="enter_address">Enter an address</string>
     <string name="editor_offline">Offline: enter coordinates as lat, lon</string>
-    <string name="icon_default">Default</string>
+    <string name="icon_default">Batman</string>
     <string name="icon_batcave">Batcave</string>
     <string name="icon_wayne">Wayne Enterprises</string>
     <string name="icon_catwoman">Catwoman</string>

@@ -15,7 +15,7 @@ class PlaceIconsTest {
     }
 
     @Test
-    fun unknownOrEmptyIdMeansTheDefaultGlyph() {
+    fun unknownOrEmptyIdMeansTheBatLogo() {
         assertEquals(0, PlaceIcons.drawable(""))
         assertEquals(0, PlaceIcons.drawable("penguin"))
         assertNotEquals(PlaceIcons.label(""), PlaceIcons.label(PlaceIcons.JOKER))

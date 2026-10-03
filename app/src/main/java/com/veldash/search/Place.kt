@@ -8,8 +8,8 @@ class Place(
     val lat: Double,
     val lon: Double,
     /**
-     * Logo shown for this place in the search rows: one of the ids in `PlaceIcons`, or empty
-     * for the default glyph of the row (house, briefcase, star). Only saved places carry one.
+     * Logo shown for this place in the search rows and on its destination pin: one of the ids
+     * in `PlaceIcons`, or empty for the default, the bat logo. Only saved places carry one.
      */
     val icon: String = "",
 ) {

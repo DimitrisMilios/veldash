@@ -72,7 +72,6 @@
     <dimen name="dialog_width">520dp</dimen>
     <dimen name="pick_chip">56dp</dimen>
     <dimen name="pick_chip_padding">6dp</dimen>
-    <dimen name="pick_glyph_padding">14dp</dimen>
     <dimen name="text_row_title">18sp</dimen>
     <dimen name="text_row_subtitle">14sp</dimen>
 </resources>

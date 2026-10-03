@@ -3,10 +3,10 @@ package com.veldash.ui
 import com.veldash.R
 
 /**
- * The logos a saved place can wear in the search rows: five Gotham badges (drawable-nodpi
- * PNGs, 256 px, sources in /art) keyed by a short id that is stored with the place
- * ([com.veldash.search.Place.icon]). An empty or unknown id means the row's default glyph
- * (house, briefcase, star).
+ * The logos a saved place can wear in the search rows and on its destination pin: five Gotham
+ * badges (drawable-nodpi PNGs, 256 px, sources in /art) keyed by a short id that is stored
+ * with the place ([com.veldash.search.Place.icon]). An empty or unknown id means the default,
+ * the bat logo.
  */
 object PlaceIcons {
 
@@ -16,10 +16,10 @@ object PlaceIcons {
     const val JOKER = "joker"
     const val RIDDLER = "riddler"
 
-    /** Picker order. */
+    /** Picker order (after the bat logo, which is the empty id). */
     val ALL: List<String> = listOf(BATCAVE, WAYNE, CATWOMAN, JOKER, RIDDLER)
 
-    /** The PNG for [id], or 0 for the default glyph. */
+    /** The PNG for [id], or 0 for the default (the bat logo). */
     fun drawable(id: String): Int = when (id) {
         BATCAVE -> R.drawable.logo_batcave
         WAYNE -> R.drawable.logo_wayne
