@@ -34,8 +34,13 @@ OUT_DIR="$(mkdir -p "$(dirname "$OUT")" && cd "$(dirname "$OUT")" && pwd)"
 OUT_NAME="$(basename "$OUT")"
 PBF_ABS="$(cd "$(dirname "$PBF")" && pwd)/$(basename "$PBF")"
 cd "$OUT_DIR"
-# GNU realpath --relative-to is missing on macOS; python does the same everywhere.
-PBF_REL="$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$PBF_ABS" "$OUT_DIR")"
+# GNU realpath --relative-to is missing on macOS, python3 is missing on a stock Windows (the
+# Store stub only prints an error): use whichever is there.
+if realpath --relative-to=. . >/dev/null 2>&1; then
+  PBF_REL="$(realpath --relative-to="$OUT_DIR" "$PBF_ABS")"
+else
+  PBF_REL="$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$PBF_ABS" "$OUT_DIR")"
+fi
 
 ARGS=(
   --osm-path="$PBF_REL"
