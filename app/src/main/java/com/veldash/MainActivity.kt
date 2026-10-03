@@ -37,6 +37,7 @@ import com.veldash.search.GeoUri
 import com.veldash.search.Place
 import com.veldash.search.PlaceStore
 import com.veldash.ui.Hud
+import com.veldash.ui.PlaceIcons
 import com.veldash.ui.SearchPanel
 import com.veldash.util.Bg
 import com.veldash.util.BundledData
@@ -74,6 +75,8 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     /** Name of the current destination for the banner (a searched place); null for a dropped pin. */
     private var destinationName: String? = null
+    /** Drawable of the logo on the destination pin (a saved place wearing one), 0 for the bat logo. */
+    private var destinationBadge = 0
 
     private var map: MapLibreMap? = null
     private var current: MapFile? = null
@@ -187,6 +190,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             recents = recents,
             onPick = { goTo(it) },
             currentDestination = { destination },
+            currentDestinationName = { destinationName },
             currentPosition = { LocationBus.last?.let { LatLng(it.lat, it.lon) } ?: map?.cameraPosition?.target },
         )
         favorites.load { searchPanel.refresh() }
@@ -234,6 +238,7 @@ class MainActivity : Activity(), LocationBus.Listener {
             // Long-press anywhere = "take me there".
             m.addOnMapLongClickListener { p ->
                 destinationName = null
+                destinationBadge = badgeAt(p.latitude, p.longitude, "")
                 setDestination(p)
                 true
             }
@@ -300,7 +305,22 @@ class MainActivity : Activity(), LocationBus.Listener {
 
     private fun goTo(p: Place) {
         destinationName = p.name
+        destinationBadge = badgeAt(p.lat, p.lon, p.icon)
         setDestination(LatLng(p.lat, p.lon))
+    }
+
+    /**
+     * Logo for the pin at (lat, lon): the place's own [icon], else that of a saved place at the
+     * same spot (a search result or dropped pin on Home or a favorite), else 0 for the bat logo.
+     */
+    private fun badgeAt(lat: Double, lon: Double, icon: String): Int {
+        val id = icon.ifEmpty {
+            favorites.find(lat, lon)?.icon
+                ?: prefs.home?.takeIf { it.sameSpot(lat, lon) }?.icon
+                ?: prefs.work?.takeIf { it.sameSpot(lat, lon) }?.icon
+                ?: ""
+        }
+        return PlaceIcons.drawable(id)
     }
 
     // ---- Lifecycle ----
@@ -743,7 +763,7 @@ class MainActivity : Activity(), LocationBus.Listener {
         route = null
         navigator = null
         motion.setNavigator(null)
-        routeOverlay.setDestination(p)
+        routeOverlay.setDestination(p, destinationBadge)
         routeOverlay.setRoute(null)
         hud.showDestination(destinationName ?: getString(R.string.dropped_pin))
 
@@ -784,6 +804,7 @@ class MainActivity : Activity(), LocationBus.Listener {
     private fun clearRoute() {
         destination = null
         destinationName = null
+        destinationBadge = 0
         route = null
         navigator = null
         motion.setNavigator(null)

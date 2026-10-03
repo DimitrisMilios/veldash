@@ -102,7 +102,7 @@ the one call to action).
   heading.
 
 Every island is a plain XML shape drawable and every label is the system Roboto: no font
-files, no image assets beyond the bat logo, no libraries, no gradients.
+files, no image assets beyond the bat logo and the five place logos, no libraries, no gradients.
 
 ## Search and favorites
 
@@ -111,10 +111,17 @@ Work shortcuts, saved places and recent destinations, filtered as you type. Pres
 icon (or the keyboard's search key) for online results, or type coordinates as `lat, lon`
 (works offline). Tap any row to route to it.
 
-- **Home / Work:** tap one while unset (or its Edit) to pick it: search, or use the current
-  location. Long-press to remove it.
-- **Saved places:** long-press a result to save it; long-press a saved place to remove it.
-  When a destination is set, a row saves it.
+- **Home / Work:** tap one while unset (or its Edit) to open its editor: type the address
+  (or `lat, lon`), pick a logo, Save. The Search button in the editor instead picks the place
+  from the list (results, saved, recent, or the current location). Long-press to remove it.
+- **Saved places:** long-press a result to save it, with a name and a logo; long-press a saved
+  place to edit (rename, move, change its logo) or remove it. When a destination is set, a
+  row saves it.
+- **Logos:** Home, Work and every saved place can wear one of five badges (Batcave, Wayne
+  Enterprises, Catwoman, Joker, Riddler; `res/drawable-nodpi/logo_*.png`, sources in `art/`)
+  instead of the default house, briefcase or star. The choice is stored with the place, and
+  while driving to that place the destination pin on the map wears the same badge (on an ink
+  disc, on the usual spike) instead of the bat logo.
 - **Recent history:** every destination you pick. The first four show, "More from recent
   history" shows the rest; long-press one to save it or remove it from history.
 

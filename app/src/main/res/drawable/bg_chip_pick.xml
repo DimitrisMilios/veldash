@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo chip in the place editor: the 8% white disc of bg_chip, ringed in yellow when it is the
+     chosen one (state_selected) or rotary-focused. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/ink_fill_hi" />
+            <stroke android:width="3dp" android:color="@color/bat_yellow" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/ink_fill_hi" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/ink_fill" />
+            <stroke android:width="2dp" android:color="@color/bat_yellow" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/ink_fill" />
+        </shape>
+    </item>
+</selector>

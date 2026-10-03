@@ -15,8 +15,9 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
 /**
- * Route polyline + destination pin (the bat logo, [BatArt.pin]), inserted below the batmobile so
- * the car always draws on top of the line.
+ * Route polyline + destination pin, inserted below the batmobile so the car always draws on
+ * top of the line. The pin is the bat logo ([BatArt.pin]) or, when driving to a saved place
+ * that wears one, that place's logo ([BatArt.badgePin]).
  *
  * The pin stands upright (viewport pitch) over a pool of light and a contact dot that lie flat
  * on the road (map pitch), so in the tilted chase view the pool foreshortens with the street
@@ -28,17 +29,23 @@ import org.maplibre.android.style.sources.GeoJsonSource
  */
 class RouteOverlay(private val context: Context) {
 
+    private var style: Style? = null
     private var routeSource: GeoJsonSource? = null
     private var destSource: GeoJsonSource? = null
     private var pinLayer: SymbolLayer? = null
     private var glowLayer: CircleLayer? = null
     private var drop: ValueAnimator? = null
+    /** Drawable of the logo on the pin, 0 for the bat. Kept across style reloads. */
+    private var badge = 0
+    /** Pin images already added to the current style, by name. */
+    private val pinImages = HashSet<String>()
     /** Lazy: the overlay is built as an Activity field, before the Activity has resources. */
     private val density by lazy { context.resources.displayMetrics.density }
 
     /** Adds sources/layers to a freshly loaded style, below [aboveLayerId]. */
     fun attach(style: Style, aboveLayerId: String, route: Route?, destination: LatLng?) {
-        style.addImage(IMAGE_DEST, BatArt.pin(context))
+        this.style = style
+        pinImages.clear()
 
         val rs = GeoJsonSource(SRC_ROUTE, route?.let(::lineJson) ?: EMPTY)
         style.addSource(rs)
@@ -91,7 +98,7 @@ class RouteOverlay(private val context: Context) {
             aboveLayerId,
         )
         val pin = SymbolLayer(LAYER_DEST, SRC_DEST).withProperties(
-            PropertyFactory.iconImage(IMAGE_DEST),
+            PropertyFactory.iconImage(pinImage(style, badge)),
             PropertyFactory.iconSize(1f),
             // The spike tip is the destination point.
             PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
@@ -125,14 +132,33 @@ class RouteOverlay(private val context: Context) {
         routeSource?.setGeoJson(route?.let(::lineJson) ?: EMPTY)
     }
 
-    fun setDestination(p: LatLng?) {
+    /**
+     * Moves the pin to [p] (or removes it), wearing the logo [badge] (a drawable, 0 for the bat).
+     * Pin images are added to the style on first use and kept; a style holds at most six.
+     */
+    fun setDestination(p: LatLng?, badge: Int = 0) {
+        this.badge = badge
+        val s = style
+        val pin = pinLayer
+        if (s != null && pin != null) pin.setProperties(PropertyFactory.iconImage(pinImage(s, badge)))
         destSource?.setGeoJson(p?.let(::pointJson) ?: EMPTY)
         if (p != null) dropIn() else drop?.cancel()
+    }
+
+    /** Name of the pin image for [badge] in [style], adding the bitmap on first use. */
+    private fun pinImage(style: Style, badge: Int): String {
+        val name = if (badge == 0) IMAGE_DEST else "$IMAGE_BADGE_PREFIX$badge"
+        if (pinImages.add(name)) {
+            style.addImage(name, if (badge == 0) BatArt.pin(context) else BatArt.badgePin(context, badge))
+        }
+        return name
     }
 
     fun detach() {
         drop?.cancel()
         drop = null
+        style = null
+        pinImages.clear()
         routeSource = null
         destSource = null
         pinLayer = null
@@ -201,6 +227,7 @@ class RouteOverlay(private val context: Context) {
         const val LAYER_DEST_GLOW = "dest-glow"
         const val LAYER_DEST_DOT = "dest-dot"
         const val IMAGE_DEST = "bat-signal"
+        const val IMAGE_BADGE_PREFIX = "pin-badge-"
 
         const val ROUTE_COLOR = "#FFE600"
         const val CASING_COLOR = "#000000"

@@ -11,7 +11,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import com.veldash.R
@@ -30,8 +29,9 @@ import org.maplibre.android.geometry.LatLng
  * the field on top, then Home and Work shortcuts, saved places and recent destinations, which
  * filter locally as you type. Go (or the keyboard's search key) adds online results below.
  *
- * Tapping Home or Work while unset (or its Edit) switches the card into "pick" mode: the next
- * place chosen is stored as that shortcut instead of being driven to.
+ * Home, Work and favorites are set up in the [PlaceEditor] dialog (address line, name, logo).
+ * From there, Home and Work can also switch the card into "pick" mode: the next place chosen
+ * from the list is stored as that shortcut instead of being driven to.
  *
  * Hidden (GONE) until opened, so it costs nothing while driving. Rows are a plain LinearLayout
  * of recycled row views: at most a dozen, so no adapter machinery.
@@ -44,6 +44,7 @@ class SearchPanel(
     private val recents: PlaceStore,
     private val onPick: (Place) -> Unit,
     private val currentDestination: () -> LatLng?,
+    private val currentDestinationName: () -> String?,
     private val currentPosition: () -> LatLng?,
 ) {
 
@@ -55,6 +56,7 @@ class SearchPanel(
 
     private val rows = ArrayList<Row>()
     private val inflater = LayoutInflater.from(activity)
+    private val editor = PlaceEditor(activity, currentPosition)
     private var searchSeq = 0
 
     /** Home or Work while picking a place for that shortcut, else null. */
@@ -62,8 +64,11 @@ class SearchPanel(
     private var recentsExpanded = false
 
     private val logo: Bitmap by lazy { BatArt.logoIcon(activity) }
-    private val iconPad = activity.resources.getDimensionPixelSize(R.dimen.row_icon_padding)
-    private val logoPad = activity.resources.getDimensionPixelSize(R.dimen.row_logo_padding)
+    private val iconPad = dimen(R.dimen.row_icon_padding)
+    private val logoPad = dimen(R.dimen.row_logo_padding)
+    private val badgePad = dimen(R.dimen.row_badge_padding)
+    /** Side of a place logo inside the chip, in dp. */
+    private val badgeDp = Math.round((dimen(R.dimen.chip) - 2 * badgePad) / activity.resources.displayMetrics.density)
     private val colorText = color(R.color.bat_text)
     private val colorDim = color(R.color.bat_text_dim)
     private val colorYellow = color(R.color.bat_yellow)
@@ -221,7 +226,7 @@ class SearchPanel(
             if (p == null) return
             if (!label.contains(q, true) && !p.name.contains(q, true) && !p.detail.contains(q, true)) return
         }
-        rows += Row(kind, p, label, p?.let(::address) ?: activity.getString(R.string.tap_to_set))
+        rows += Row(kind, p, label, p?.address() ?: activity.getString(R.string.tap_to_set))
     }
 
     // ---- rows ----
@@ -247,6 +252,9 @@ class SearchPanel(
         val h = v.tag as Holder
         val kind = row.kind
 
+        // A saved place wearing one of the logos shows it instead of the row's glyph.
+        val saved = kind == Kind.HOME || kind == Kind.WORK || kind == Kind.FAVORITE
+        val badgeRes = if (saved) PlaceIcons.drawable(row.place?.icon ?: "") else 0
         val iconRes = when (kind) {
             Kind.HOME -> R.drawable.ic_home
             Kind.WORK -> R.drawable.ic_work
@@ -255,10 +263,19 @@ class SearchPanel(
             Kind.RECENT -> R.drawable.ic_history
             else -> 0
         }
-        // The wide bat logo needs less inset than the square glyphs to read at badge size.
-        val pad = if (kind == Kind.RESULT) logoPad else iconPad
+        // The wide bat logo needs less inset than the square glyphs to read at badge size;
+        // the square place logos sit in between.
+        val pad = when {
+            badgeRes != 0 -> badgePad
+            kind == Kind.RESULT -> logoPad
+            else -> iconPad
+        }
         h.icon.setPadding(pad, pad, pad, pad)
         when {
+            badgeRes != 0 -> {
+                h.icon.setImageBitmap(BatArt.placeLogo(activity, badgeRes, badgeDp))
+                h.icon.visibility = View.VISIBLE
+            }
             iconRes != 0 -> {
                 h.icon.setImageResource(iconRes)
                 h.icon.visibility = View.VISIBLE
@@ -284,7 +301,7 @@ class SearchPanel(
 
         val editable = (kind == Kind.HOME || kind == Kind.WORK) && row.place != null
         h.action.visibility = if (editable) View.VISIBLE else View.GONE
-        h.action.setOnClickListener(if (editable) View.OnClickListener { startPicking(kind) } else null)
+        h.action.setOnClickListener(if (editable) View.OnClickListener { editShortcut(kind) } else null)
 
         if (kind == Kind.STATUS) {
             v.setOnClickListener(null)
@@ -300,10 +317,13 @@ class SearchPanel(
     private fun onRowClick(row: Row) {
         val p = row.place
         when (row.kind) {
-            Kind.HOME, Kind.WORK -> if (p != null) go(p) else startPicking(row.kind)
+            Kind.HOME, Kind.WORK -> if (p != null) go(p) else editShortcut(row.kind)
             Kind.SAVE_DEST -> {
                 val dest = currentDestination() ?: return
-                promptName(null) { name -> favorites.add(Place(name, "", dest.latitude, dest.longitude)); refresh() }
+                // A searched destination keeps its name; a dropped pin is named by the driver.
+                val name = currentDestinationName()
+                val seed = Place(name ?: "", if (name == null) coords(dest.latitude, dest.longitude) else "", dest.latitude, dest.longitude)
+                editor.show(PlaceEditor.Target.FAVORITE, seed, saved = false, onSave = { favorites.add(it); refresh() })
             }
             Kind.HERE -> {
                 val here = currentPosition() ?: return
@@ -324,35 +344,62 @@ class SearchPanel(
         val p = row.place ?: return false
         when (row.kind) {
             Kind.HOME, Kind.WORK -> confirm(activity.getString(R.string.remove_shortcut, row.title)) {
-                if (row.kind == Kind.HOME) prefs.home = null else prefs.work = null
+                setShortcut(row.kind, null)
                 refresh()
             }
-            Kind.FAVORITE -> confirm(activity.getString(R.string.remove_favorite, p.name)) { favorites.remove(p); refresh() }
-            Kind.RECENT -> AlertDialog.Builder(activity)
+            Kind.FAVORITE -> AlertDialog.Builder(activity, R.style.Theme_Veldash_Dialog)
+                .setTitle(p.name)
+                .setItems(arrayOf(activity.getString(R.string.edit), activity.getString(R.string.remove))) { _, which ->
+                    if (which == 0) {
+                        editor.show(PlaceEditor.Target.FAVORITE, p, saved = true, onSave = { favorites.replace(p, it); refresh() })
+                    } else {
+                        confirm(activity.getString(R.string.remove_favorite, p.name)) { favorites.remove(p); refresh() }
+                    }
+                }
+                .show()
+            Kind.RECENT -> AlertDialog.Builder(activity, R.style.Theme_Veldash_Dialog)
                 .setTitle(p.name)
                 .setItems(arrayOf(activity.getString(R.string.save_favorite), activity.getString(R.string.remove_recent))) { _, which ->
                     if (which == 0) {
-                        promptName(p.name) { name -> favorites.add(Place(name, p.detail, p.lat, p.lon)); refresh() }
+                        editor.show(PlaceEditor.Target.FAVORITE, p, saved = false, onSave = { favorites.add(it); refresh() })
                     } else {
                         recents.remove(p)
                         refresh()
                     }
                 }
                 .show()
-            Kind.RESULT -> promptName(p.name) { name -> favorites.add(Place(name, p.detail, p.lat, p.lon)); refresh() }
+            Kind.RESULT -> editor.show(PlaceEditor.Target.FAVORITE, p, saved = false, onSave = { favorites.add(it); refresh() })
             else -> return false
         }
         return true
     }
 
-    /** Drive there: remember it in the recent history, then hand it to the router. */
+    /** Drive there: remember it in the recent history (without its logo), then hand it to the router. */
     private fun go(p: Place) {
-        recents.add(p)
+        recents.add(p.with(icon = ""))
         close()
         onPick(p)
     }
 
-    // ---- Home / Work pick mode ----
+    // ---- Home / Work ----
+
+    /** The editor for a shortcut: type the address, pick its logo, or switch to picking from the list. */
+    private fun editShortcut(kind: Kind) {
+        val target = if (kind == Kind.HOME) PlaceEditor.Target.HOME else PlaceEditor.Target.WORK
+        editor.show(
+            target,
+            shortcut(kind),
+            saved = shortcut(kind) != null,
+            onSave = { setShortcut(kind, it); refresh() },
+            onSearch = { startPicking(kind) },
+        )
+    }
+
+    private fun shortcut(kind: Kind): Place? = if (kind == Kind.HOME) prefs.home else prefs.work
+
+    private fun setShortcut(kind: Kind, p: Place?) {
+        if (kind == Kind.HOME) prefs.home = p else prefs.work = p
+    }
 
     private fun startPicking(kind: Kind) {
         pickingFor = kind
@@ -363,8 +410,10 @@ class SearchPanel(
         imm().showSoftInput(b.editSearch, InputMethodManager.SHOW_IMPLICIT)
     }
 
+    /** A place picked from the list becomes the shortcut; the logo chosen earlier stays. */
     private fun assign(p: Place) {
-        if (pickingFor == Kind.HOME) prefs.home = p else prefs.work = p
+        val kind = pickingFor ?: return
+        setShortcut(kind, p.with(icon = shortcut(kind)?.icon ?: ""))
         endPicking()
     }
 
@@ -379,8 +428,8 @@ class SearchPanel(
 
     /** Card width: the design width, or the screen minus margins on a narrow (portrait) unit. */
     private fun fitWidth() {
-        val margin = activity.resources.getDimensionPixelSize(R.dimen.gap_large)
-        val want = activity.resources.getDimensionPixelSize(R.dimen.search_panel_width)
+        val margin = dimen(R.dimen.gap_large)
+        val want = dimen(R.dimen.search_panel_width)
         val avail = b.root.width - 2 * margin
         val w = if (avail in 1 until want) avail else want
         val lp = b.panelSearch.layoutParams
@@ -390,37 +439,20 @@ class SearchPanel(
         }
     }
 
-    private fun address(p: Place): String = if (p.detail.isEmpty()) p.name else "${p.name}, ${p.detail}"
-
     private fun coords(lat: Double, lon: Double): String = activity.getString(R.string.coords, lat, lon)
 
     private fun confirm(message: String, onYes: () -> Unit) {
-        AlertDialog.Builder(activity)
+        AlertDialog.Builder(activity, R.style.Theme_Veldash_Dialog)
             .setMessage(message)
             .setPositiveButton(R.string.remove) { _, _ -> onYes() }
             .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
-    private fun promptName(initial: String?, onName: (String) -> Unit) {
-        val edit = EditText(activity).apply {
-            setText(initial ?: "")
-            setSingleLine()
-            setSelectAllOnFocus(true)
-        }
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.favorite_name)
-            .setView(edit)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val name = edit.text.toString().trim()
-                if (name.isNotEmpty()) onName(name)
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
     private fun imm(): InputMethodManager =
         activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+    private fun dimen(id: Int): Int = activity.resources.getDimensionPixelSize(id)
 
     @Suppress("DEPRECATION")
     private fun color(id: Int): Int = activity.resources.getColor(id)

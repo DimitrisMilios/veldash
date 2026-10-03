@@ -86,4 +86,20 @@
     <string name="remove">Remove</string>
     <string name="cancel">Cancel</string>
     <string name="remove_favorite">Remove "%1$s" from favorites?</string>
+
+    <!-- Place editor: set Home / Work by address, name a favorite, pick its logo. -->
+    <string name="edit_favorite">Edit favorite</string>
+    <string name="place_name_hint">Name</string>
+    <string name="place_address_hint">Address or lat, lon</string>
+    <string name="choose_icon">Icon</string>
+    <string name="search_instead">Search</string>
+    <string name="enter_name">Enter a name</string>
+    <string name="enter_address">Enter an address</string>
+    <string name="editor_offline">Offline: enter coordinates as lat, lon</string>
+    <string name="icon_default">Default</string>
+    <string name="icon_batcave">Batcave</string>
+    <string name="icon_wayne">Wayne Enterprises</string>
+    <string name="icon_catwoman">Catwoman</string>
+    <string name="icon_joker">Joker</string>
+    <string name="icon_riddler">Riddler</string>
 </resources>

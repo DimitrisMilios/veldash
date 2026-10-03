@@ -38,6 +38,16 @@
     <!-- values-v31 adds the Android 12+ splash screen colours on top of the base. -->
     <style name="Theme.Veldash" parent="Base.Theme.Veldash" />
 
+    <!-- Dialogs over the map (place editor, remove prompts): the dropdown's deep ink island,
+         yellow actions, flat. -->
+    <style name="Theme.Veldash.Dialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_island_deep</item>
+        <item name="android:colorAccent">@color/bat_yellow</item>
+        <item name="android:textColorPrimary">@color/bat_text</item>
+        <item name="android:textColorSecondary">@color/bat_text_dim</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+
     <!-- Type scale, all system Roboto (no font files):
          Label = tiny tracked capitals in grey (ARRIVAL, SPEED, the maneuver),
          Value = Roboto Medium numerals in white, Body = regular copy. -->

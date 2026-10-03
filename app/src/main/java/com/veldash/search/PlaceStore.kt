@@ -47,6 +47,21 @@ class PlaceStore(context: Context, fileName: String, private val maxItems: Int =
         if (items.removeAll { it.sameSpot(p.lat, p.lon) }) save()
     }
 
+    /** Swaps [old] for [new] in its list position (an edit); adds [new] on top if [old] is gone. */
+    fun replace(old: Place, new: Place) {
+        val i = items.indexOfFirst { it.sameSpot(old.lat, old.lon) }
+        if (i < 0) {
+            add(new)
+            return
+        }
+        items[i] = new
+        // The new spot may already be saved under another entry: keep only the edited one.
+        for (j in items.indices.reversed()) {
+            if (j != i && items[j].sameSpot(new.lat, new.lon)) items.removeAt(j)
+        }
+        save()
+    }
+
     /** Case-insensitive substring match on name and detail. Empty query returns everything. */
     fun matching(query: String): List<Place> {
         val q = query.trim()
@@ -85,13 +100,13 @@ class PlaceStore(context: Context, fileName: String, private val maxItems: Int =
         fun toJson(list: List<Place>): String {
             val arr = JSONArray()
             for (p in list) {
-                arr.put(
-                    JSONObject()
-                        .put("name", p.name)
-                        .put("detail", p.detail)
-                        .put("lat", p.lat)
-                        .put("lon", p.lon),
-                )
+                val o = JSONObject()
+                    .put("name", p.name)
+                    .put("detail", p.detail)
+                    .put("lat", p.lat)
+                    .put("lon", p.lon)
+                if (p.icon.isNotEmpty()) o.put("icon", p.icon)
+                arr.put(o)
             }
             return arr.toString()
         }
@@ -106,6 +121,7 @@ class PlaceStore(context: Context, fileName: String, private val maxItems: Int =
                     o.optString("detail", ""),
                     o.getDouble("lat"),
                     o.getDouble("lon"),
+                    o.optString("icon", ""),
                 )
             }
             return out
