@@ -1,0 +1,44 @@
+MIT License
+
+Copyright (c) 2026 Dimitris Milios
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+TRADEMARK AND THIRD-PARTY INTELLECTUAL PROPERTY EXCLUSION NOTICE
+================================================================================
+
+This license applies SOLELY to the original source code, architecture, and
+software implementations written for the Veldash project.
+
+This license DOES NOT grant any rights, licenses, or permissions to:
+1. "Batman", "Batmobile", "Batcave", "Wayne Enterprises", "The Joker",
+   "Catwoman", "The Riddler", the Bat-insignia, or any related character names,
+   logos, vehicle designs, or trademarks. All such trademarks, designs, and
+   intellectual property belong exclusively to DC Comics, Inc. and Warner Bros.
+   Entertainment Inc. (Warner Bros. Discovery).
+2. Third-party 3D models or artistic assets included as non-commercial fan
+   tributes, which remain under their respective third-party licenses and original
+   copyrights (see LEGAL.md).
+
+Any commercial distribution, re-branding, or distribution of this software on
+public application stores (including Google Play Store) must strip or replace all
+DC Comics and Warner Bros. intellectual property, trademarks, and themed art assets
+with original or generic assets. See LEGAL.md for full legal terms and replacement
+instructions.
